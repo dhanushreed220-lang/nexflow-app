@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NexFlow — Project Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Plus Jakarta Sans',sans-serif;background:#f8fafc;color:#0f172a;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:#f1f5f9;}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:99px;}
+  input,select,textarea,button{font-family:'Plus Jakarta Sans',sans-serif;}
+  table{border-collapse:collapse;width:100%;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ═══════════════════════════════
+   DATA
+═══════════════════════════════ */
+const USERS = [
+  {id:1,name:"Alex Morgan", email:"admin@nexflow.com",password:"admin123",role:"Director", avatar:"AM",color:"#6366f1",dept:"Executive",  skills:["Strategy","Finance","Leadership"]},
+  {id:2,name:"Jordan Lee",  email:"lead@nexflow.com", password:"lead123", role:"Team Lead",avatar:"JL",color:"#0ea5e9",dept:"Engineering",skills:["React","Node","Leadership"]},
+  {id:3,name:"Sam Rivera",  email:"dev@nexflow.com",  password:"dev123",  role:"Developer",avatar:"SR",color:"#10b981",dept:"Engineering",skills:["Python","API","Docker"]},
+];
+
+const INIT_PROJECTS = [
+  {id:1,name:"NexFlow Redesign",       desc:"Full UI/UX overhaul of the main product.",                  status:"active",   priority:"high",    progress:72, deadline:"2026-07-15",budget:48000,spent:32000,team:[1,2,3],cat:"Design",    pinned:false,tags:["UI","UX","Branding"],  health:78, milestones:[{id:1,t:"Research done",done:true},{id:2,t:"Wireframes approved",done:true},{id:3,t:"Dev handoff",done:false}]},
+  {id:2,name:"API Integration v3",     desc:"Connect third-party services and modernize REST endpoints.",status:"active",   priority:"critical",progress:45, deadline:"2026-06-30",budget:62000,spent:28000,team:[1,3],  cat:"Engineering",pinned:true, tags:["Backend","API"],       health:55, milestones:[{id:1,t:"Auth endpoints",done:true},{id:2,t:"Rate limiting",done:false},{id:3,t:"Docs published",done:false}]},
+  {id:3,name:"Mobile App Launch",      desc:"iOS & Android release for Q3 milestone.",                   status:"planning", priority:"medium",  progress:18, deadline:"2026-09-01",budget:90000,spent:12000,team:[2,3],  cat:"Mobile",     pinned:false,tags:["iOS","Android"],      health:90, milestones:[{id:1,t:"Design complete",done:false},{id:2,t:"MVP build",done:false},{id:3,t:"Beta launch",done:false}]},
+  {id:4,name:"Data Analytics Dashboard",desc:"Real-time metrics and reporting panel for executives.",    status:"review",   priority:"high",    progress:89, deadline:"2026-06-10",budget:35000,spent:31000,team:[1,2],  cat:"Analytics",  pinned:false,tags:["Data","BI"],          health:85, milestones:[{id:1,t:"Schema locked",done:true},{id:2,t:"Charts built",done:true},{id:3,t:"UAT",done:false}]},
+  {id:5,name:"Security Audit 2026",    desc:"Penetration testing and compliance review.",                status:"completed",priority:"critical",progress:100,deadline:"2026-05-01",budget:25000,spent:24500,team:[1],    cat:"Security",   pinned:false,tags:["Security","Compliance"],health:100,milestones:[{id:1,t:"Scope defined",done:true},{id:2,t:"Testing complete",done:true},{id:3,t:"Report delivered",done:true}]},
+];
+
+const INIT_TASKS = [
+  {id:1,pid:1,title:"Finalize color system",      assignee:2,status:"done",      priority:"high",    due:"2026-06-05",tLogged:6, tEst:8, labels:["Design"]},
+  {id:2,pid:1,title:"Component library setup",    assignee:3,status:"inprogress",priority:"high",    due:"2026-06-12",tLogged:4, tEst:12,labels:["Dev"]},
+  {id:3,pid:1,title:"User testing round 2",       assignee:1,status:"todo",      priority:"medium",  due:"2026-07-01",tLogged:0, tEst:5, labels:["QA","Research"]},
+  {id:4,pid:2,title:"OAuth 2.0 endpoints",        assignee:3,status:"inprogress",priority:"critical",due:"2026-06-20",tLogged:8, tEst:20,labels:["Backend"]},
+  {id:5,pid:2,title:"Rate limiter middleware",    assignee:3,status:"todo",      priority:"high",    due:"2026-06-25",tLogged:0, tEst:6, labels:["Backend"]},
+  {id:6,pid:4,title:"Chart rendering engine",     assignee:2,status:"review",    priority:"high",    due:"2026-06-08",tLogged:10,tEst:12,labels:["Frontend"]},
+  {id:7,pid:3,title:"App wireframes",             assignee:2,status:"todo",      priority:"medium",  due:"2026-07-10",tLogged:0, tEst:8, labels:["Design"]},
+  {id:8,pid:3,title:"API schema design",          assignee:3,status:"todo",      priority:"high",    due:"2026-07-20",tLogged:0, tEst:10,labels:["Backend"]},
+];
+
+const INIT_SPRINTS = [
+  {id:1,pid:1,name:"Sprint 1",start:"2026-05-01",end:"2026-05-14",status:"completed",velocity:32},
+  {id:2,pid:1,name:"Sprint 2",start:"2026-05-15",end:"2026-05-28",status:"completed",velocity:28},
+  {id:3,pid:1,name:"Sprint 3",start:"2026-05-29",end:"2026-06-11",status:"active",   velocity:0},
+  {id:4,pid:2,name:"Sprint 1",start:"2026-05-20",end:"2026-06-02",status:"completed",velocity:24},
+  {id:5,pid:2,name:"Sprint 2",start:"2026-06-03",end:"2026-06-16",status:"active",   velocity:0},
+];
+
+const INIT_INVOICES = [
+  {id:1,pid:1,num:"INV-001",amount:12000,status:"paid",   due:"2026-05-15",client:"Acme Corp",      issued:"2026-05-01"},
+  {id:2,pid:2,num:"INV-002",amount:18500,status:"pending",due:"2026-06-30",client:"TechStart Inc",  issued:"2026-06-01"},
+  {id:3,pid:3,num:"INV-003",amount:25000,status:"draft",  due:"2026-07-15",client:"GlobalMedia Ltd",issued:"2026-06-10"},
+  {id:4,pid:4,num:"INV-004",amount:8000, status:"overdue",due:"2026-05-20",client:"DataViz Co",     issued:"2026-04-20"},
+];
+
+const INIT_RISKS = [
+  {id:1,pid:2,title:"Third-party API deprecation",   sev:"high",  prob:"medium",status:"open",     fix:"Identify fallback vendor by June 20"},
+  {id:2,pid:1,title:"Designer availability conflict", sev:"medium",prob:"high",  status:"mitigated",fix:"Hired contract designer for July"},
+  {id:3,pid:3,title:"App store review delays",        sev:"low",   prob:"high",  status:"open",     fix:"Submit 3 weeks early"},
+  {id:4,pid:4,title:"Data privacy compliance gap",    sev:"high",  prob:"low",   status:"open",     fix:"Legal review scheduled"},
+];
+
+const INIT_TIMELOG = [
+  {id:1,uid:2,tid:1,pid:1,hours:6, date:"2026-05-30",note:"Finalized primary palette"},
+  {id:2,uid:3,tid:2,pid:1,hours:4, date:"2026-05-31",note:"Button system done"},
+  {id:3,uid:3,tid:4,pid:2,hours:8, date:"2026-05-31",note:"Auth flow implemented"},
+  {id:4,uid:2,tid:6,pid:4,hours:10,date:"2026-05-29",note:"Charts complete"},
+];
+
+const INIT_GOALS = [
+  {id:1,title:"Ship NexFlow 2.0 by Q3",owner:1,overall:62,status:"active",krs:[{id:1,text:"Complete all design milestones",p:66},{id:2,text:"Achieve 95% test coverage",p:45},{id:3,text:"Zero critical bugs at launch",p:80}]},
+  {id:2,title:"Grow API client base by 40%",owner:2,overall:38,status:"active",krs:[{id:1,text:"Onboard 8 enterprise clients",p:50},{id:2,text:"Publish API docs v3",p:30},{id:3,text:"Launch partner program",p:20}]},
+  {id:3,title:"Achieve SOC 2 compliance",owner:1,overall:100,status:"completed",krs:[{id:1,text:"Complete security audit",p:100},{id:2,text:"Implement all controls",p:100},{id:3,text:"Receive certification",p:100}]},
+];
+
+const INIT_NOTIFS = [
+  {id:1,type:"overdue", title:"Task overdue",         body:"OAuth 2.0 endpoints is past due.",            time:"5m ago", read:false,icon:"⏰",color:"#ef4444"},
+  {id:2,type:"mention", title:"You were mentioned",   body:"Jordan mentioned you in API Integration v3.", time:"22m ago",read:false,icon:"💬",color:"#6366f1"},
+  {id:3,type:"budget",  title:"Budget alert",         body:"Data Analytics is at 89% of budget.",         time:"1h ago", read:false,icon:"💰",color:"#f59e0b"},
+  {id:4,type:"task",    title:"Task assigned",        body:"User testing round 2 assigned by Alex.",      time:"2h ago", read:true, icon:"✅",color:"#0ea5e9"},
+  {id:5,type:"done",    title:"Project completed 🎉", body:"Security Audit 2026 marked complete!",        time:"1d ago", read:true, icon:"🏆",color:"#10b981"},
+];
+
+const ACTIVITY = [
+  {id:1,uid:2,action:"moved task",    detail:"Component library setup → In Progress",time:"30m ago"},
+  {id:2,uid:3,action:"completed task",detail:"Finalize color system",               time:"2h ago"},
+  {id:3,uid:1,action:"created project",detail:"Security Audit 2026",               time:"1d ago"},
+  {id:4,uid:2,action:"added comment", detail:"User testing round 2 — 3 comments",  time:"3h ago"},
+  {id:5,uid:3,action:"logged time",   detail:"OAuth 2.0 endpoints — 8h logged",    time:"4h ago"},
+];
+
+/* ═══════════════════════════════
+   HELPERS
+═══════════════════════════════ */
+const pct=(s,t)=>t?Math.round((s/t)*100):0;
+const cur=n=>"$"+Number(n).toLocaleString();
+const dLeft=d=>Math.ceil((new Date(d)-new Date())/86400000);
+const uid=()=>Date.now()+Math.random();
+
+const S_CFG={planning:{label:"Planning",color:"#f59e0b",bg:"#fef3c7"},active:{label:"Active",color:"#6366f1",bg:"#ede9fe"},review:{label:"In Review",color:"#0ea5e9",bg:"#e0f2fe"},completed:{label:"Completed",color:"#10b981",bg:"#d1fae5"},paused:{label:"Paused",color:"#94a3b8",bg:"#f1f5f9"}};
+const P_CFG={low:{label:"Low",c:"#94a3b8"},medium:{label:"Medium",c:"#f59e0b"},high:{label:"High",c:"#f97316"},critical:{label:"Critical",c:"#ef4444"}};
+const T_CFG={todo:{label:"To Do",c:"#94a3b8",bg:"#f8fafc"},inprogress:{label:"In Progress",c:"#6366f1",bg:"#ede9fe"},review:{label:"Review",c:"#0ea5e9",bg:"#e0f2fe"},done:{label:"Done",c:"#10b981",bg:"#d1fae5"}};
+const INV_CFG={draft:{label:"Draft",c:"#94a3b8",bg:"#f1f5f9"},pending:{label:"Pending",c:"#f59e0b",bg:"#fef3c7"},paid:{label:"Paid",c:"#10b981",bg:"#d1fae5"},overdue:{label:"Overdue",c:"#ef4444",bg:"#fee2e2"}};
+
+/* ═══════════════════════════════
+   UI ATOMS
+═══════════════════════════════ */
+const Av=({u,sz=32})=>(
+  <div style={{width:sz,height:sz,borderRadius:"50%",background:u?.color||"#e2e8f0",color:"#fff",fontWeight:800,fontSize:sz*.34,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:"2px solid #fff",boxShadow:"0 1px 4px rgba(0,0,0,.12)"}}>
+    {u?.avatar||"?"}
+  </div>
+);
+
+const Bdg=({cfg,label})=>(
+  <span style={{padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,color:cfg.color||cfg.c,background:cfg.bg||((cfg.color||cfg.c)+"18"),whiteSpace:"nowrap"}}>
+    {label||cfg.label}
+  </span>
+);
+
+const Bar=({value,color="#6366f1",h=6})=>(
+  <div style={{background:"#f1f5f9",borderRadius:99,height:h,overflow:"hidden"}}>
+    <div style={{width:`${Math.min(100,value)}%`,height:"100%",borderRadius:99,background:value>=100?"#10b981":color,transition:"width .5s ease"}}/>
+  </div>
+);
+
+const Btn=({children,onClick,variant="primary",icon,disabled,sm,xs:xsStyle})=>{
+  const V={primary:{background:"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",boxShadow:"0 4px 14px rgba(99,102,241,.3)",border:"none"},secondary:{background:"#f8fafc",color:"#374151",border:"1.5px solid #e2e8f0",boxShadow:"none"},danger:{background:"#fee2e2",color:"#dc2626",border:"none",boxShadow:"none"},ghost:{background:"transparent",color:"#6366f1",border:"1.5px solid #6366f1",boxShadow:"none"},success:{background:"#d1fae5",color:"#059669",border:"none",boxShadow:"none"}};
+  return(
+    <button onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",gap:6,padding:sm?"6px 12px":"10px 18px",borderRadius:11,cursor:disabled?"not-allowed":"pointer",fontSize:sm?11:13,fontWeight:700,opacity:disabled?.6:1,transition:"all .2s",fontFamily:"'Plus Jakarta Sans',sans-serif",...V[variant],...xsStyle}}>
+      {icon&&<span style={{fontSize:sm?12:14}}>{icon}</span>}{children}
+    </button>
+  );
+};
+
+const Modal=({children,onClose,title,width=520})=>(
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2000,padding:20,backdropFilter:"blur(2px)"}} onClick={onClose}>
+    <div style={{background:"#fff",borderRadius:22,padding:28,width:"100%",maxWidth:width,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 24px 64px rgba(0,0,0,.2)"}} onClick={e=>e.stopPropagation()}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <h2 style={{margin:0,fontSize:17,fontWeight:800,color:"#0f172a"}}>{title}</h2>
+        <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:10,cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✕</button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const Inp=({style:s,...p})=>(
+  <input {...p} style={{width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",color:"#0f172a",background:"#f8fafc",fontFamily:"'Plus Jakarta Sans',sans-serif",...s}} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+);
+const Sel=({style:s,...p})=>(
+  <select {...p} style={{width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",color:"#0f172a",background:"#f8fafc",fontFamily:"'Plus Jakarta Sans',sans-serif",...s}} onFocus={e=>e.target.style.borderColor="#6366f1"} onBlur={e=>e.target.style.borderColor="#e2e8f0"}/>
+);
+const FF=({label,children})=>(
+  <div style={{marginBottom:15}}>
+    <label style={{display:"block",fontSize:11,fontWeight:700,color:"#374151",marginBottom:5,textTransform:"uppercase",letterSpacing:".4px"}}>{label}</label>
+    {children}
+  </div>
+);
+
+const StatCard=({label,value,sub,icon,color,trend})=>(
+  <div style={{background:"#fff",borderRadius:18,padding:"18px 20px",border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)",flex:1,minWidth:140}}>
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:10}}>
+      <div style={{width:40,height:40,borderRadius:11,background:color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{icon}</div>
+      {trend!=null&&<span style={{fontSize:11,fontWeight:700,color:trend>0?"#10b981":"#ef4444"}}>{trend>0?"↑":"↓"}{Math.abs(trend)}%</span>}
+    </div>
+    <div style={{fontSize:26,fontWeight:900,color:"#0f172a",letterSpacing:"-1px"}}>{value}</div>
+    <div style={{fontSize:12,fontWeight:600,color:"#64748b",marginTop:2}}>{label}</div>
+    {sub&&<div style={{fontSize:11,color:"#94a3b8",marginTop:1}}>{sub}</div>}
+  </div>
+);
+
+/* ═══════════════════════════════
+   ONBOARDING TOUR
+═══════════════════════════════ */
+const TOUR=[
+  {emoji:"🎉",title:"Welcome to NexFlow!",body:"Your all-in-one project management platform. Let's take a quick 30-second tour!"},
+  {emoji:"📊",title:"Dashboard",body:"See key stats, pinned projects, team activity and announcements all in one place."},
+  {emoji:"📁",title:"Projects",body:"Create projects, track progress, manage budgets, and drill into Kanban boards."},
+  {emoji:"✅",title:"Tasks & Sprints",body:"Manage tasks with labels & time estimates. Organize work into agile sprints."},
+  {emoji:"⏱",title:"Time Tracker",body:"Built-in stopwatch or manual entry. See total hours logged per project and person."},
+  {emoji:"⚠️",title:"Risks & Invoices",body:"Directors track project risks and manage client invoices with payment status."},
+  {emoji:"🎯",title:"OKR Goals",body:"Set company objectives with measurable key results. Drag sliders to update progress."},
+  {emoji:"🔔",title:"Notifications & Search",body:"Bell icon for alerts. Search bar (or press Ctrl+K) to find anything instantly."},
+  {emoji:"🚀",title:"You're all set!",body:"Explore all 15 sections from the sidebar. Good luck with your projects!"},
+];
+
+const OnboardingTour=({onFinish})=>{
+  const [step,setStep]=useState(0);
+  const cur=TOUR[step]; const last=step===TOUR.length-1;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:4000,display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
+      <div style={{background:"#fff",borderRadius:24,padding:36,maxWidth:460,width:"100%",boxShadow:"0 32px 80px rgba(0,0,0,.25)",textAlign:"center"}}>
+        <div style={{fontSize:56,marginBottom:16}}>{cur.emoji}</div>
+        <h2 style={{margin:"0 0 10px",fontSize:21,fontWeight:900,color:"#0f172a"}}>{cur.title}</h2>
+        <p style={{margin:"0 0 24px",color:"#64748b",fontSize:14,lineHeight:1.7}}>{cur.body}</p>
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:24}}>
+          {TOUR.map((_,i)=><div key={i} onClick={()=>setStep(i)} style={{width:i===step?24:8,height:8,borderRadius:99,background:i===step?"#6366f1":i<step?"#a5b4fc":"#e2e8f0",transition:"all .3s",cursor:"pointer"}}/>)}
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+          {step>0&&<Btn variant="secondary" onClick={()=>setStep(s=>s-1)}>← Back</Btn>}
+          <Btn onClick={last?onFinish:()=>setStep(s=>s+1)}>{last?"Start Exploring 🚀":"Next →"}</Btn>
+          {!last&&<button onClick={onFinish} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:12,textDecoration:"underline"}}>Skip tour</button>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   LOGIN PAGE
+═══════════════════════════════ */
+const LoginPage=({onLogin})=>{
+  const [email,setEmail]=useState(""); const [pw,setPw]=useState(""); const [err,setErr]=useState(""); const [loading,setLoading]=useState(false); const [show,setShow]=useState(false); const [sel,setSel]=useState(null);
+  const go=async()=>{setLoading(true);setErr("");await new Promise(r=>setTimeout(r,700));const u=USERS.find(u=>u.email===email&&u.password===pw);u?onLogin(u):setErr("Invalid credentials. Use a demo account below.");setLoading(false);};
+  return(
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"linear-gradient(135deg,#f8faff 0%,#eef2ff 50%,#fafbff 100%)",padding:20,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-100,right:-100,width:500,height:500,borderRadius:"50%",background:"radial-gradient(circle,rgba(99,102,241,.09) 0%,transparent 70%)"}}/>
+      <div style={{position:"absolute",bottom:-60,left:-60,width:380,height:380,borderRadius:"50%",background:"radial-gradient(circle,rgba(14,165,233,.07) 0%,transparent 70%)"}}/>
+      <div style={{width:"100%",maxWidth:460,zIndex:1}}>
+        <div style={{textAlign:"center",marginBottom:30}}>
+          <div style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:62,height:62,borderRadius:18,background:"linear-gradient(135deg,#6366f1,#818cf8)",boxShadow:"0 10px 28px rgba(99,102,241,.4)",marginBottom:14,fontSize:28}}>⚡</div>
+          <h1 style={{fontSize:30,fontWeight:900,color:"#0f172a",margin:0,letterSpacing:"-1px"}}>NexFlow</h1>
+          <p style={{color:"#64748b",fontSize:14,marginTop:5}}>Project Management Platform</p>
+        </div>
+        <div style={{background:"#fff",borderRadius:24,padding:32,boxShadow:"0 4px 6px -1px rgba(0,0,0,.04),0 24px 64px -10px rgba(99,102,241,.14)",border:"1px solid rgba(99,102,241,.1)"}}>
+          <h2 style={{fontSize:20,fontWeight:800,color:"#0f172a",margin:"0 0 4px"}}>Welcome back</h2>
+          <p style={{color:"#64748b",fontSize:13,margin:"0 0 22px"}}>Sign in to your workspace</p>
+          <FF label="Email"><Inp value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@nexflow.com" type="email"/></FF>
+          <FF label="Password">
+            <div style={{position:"relative"}}>
+              <Inp value={pw} onChange={e=>setPw(e.target.value)} type={show?"text":"password"} placeholder="••••••••" style={{paddingRight:40}} onKeyDown={e=>e.key==="Enter"&&go()}/>
+              <button onClick={()=>setShow(!show)} style={{position:"absolute",right:11,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:14}}>{show?"🙈":"👁"}</button>
+            </div>
+          </FF>
+          {err&&<div style={{background:"#fef2f2",border:"1px solid #fecaca",color:"#dc2626",borderRadius:10,padding:"10px 14px",fontSize:13,marginBottom:14}}>{err}</div>}
+          <button onClick={go} disabled={loading} style={{width:"100%",padding:13,borderRadius:12,border:"none",cursor:loading?"not-allowed":"pointer",background:loading?"#a5b4fc":"linear-gradient(135deg,#6366f1,#818cf8)",color:"#fff",fontSize:15,fontWeight:800,marginBottom:22,boxShadow:loading?"none":"0 4px 16px rgba(99,102,241,.4)"}}>
+            {loading?"Signing in…":"Sign In →"}
+          </button>
+          <div style={{borderTop:"1px solid #f1f5f9",paddingTop:18}}>
+            <p style={{fontSize:11,color:"#94a3b8",marginBottom:12,textAlign:"center",fontWeight:700,letterSpacing:".5px",textTransform:"uppercase"}}>Quick Demo Access</p>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {USERS.map(u=>(
+                <button key={u.id} onClick={()=>{setEmail(u.email);setPw(u.password);setSel(u.id);setErr("");}} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,border:`1.5px solid ${sel===u.id?u.color:"#e2e8f0"}`,background:sel===u.id?u.color+"0d":"#f8fafc",cursor:"pointer",transition:"all .2s",textAlign:"left"}}>
+                  <Av u={u} sz={34}/>
+                  <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{u.name}</div><div style={{fontSize:11,color:"#64748b"}}>{u.role} · {u.email}</div></div>
+                  <span style={{fontSize:11,color:u.color,fontWeight:700,background:u.color+"15",padding:"2px 8px",borderRadius:20}}>{u.role}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <p style={{textAlign:"center",fontSize:12,color:"#94a3b8",marginTop:14}}>© 2026 NexFlow · All rights reserved</p>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   SIDEBAR
+═══════════════════════════════ */
+const NAV_ITEMS=[
+  {id:"dashboard",label:"Dashboard",  icon:"📊"},
+  {id:"projects", label:"Projects",   icon:"📁"},
+  {id:"tasks",    label:"My Tasks",   icon:"✅"},
+  {id:"sprints",  label:"Sprints",    icon:"🏃"},
+  {id:"gantt",    label:"Gantt Chart",icon:"📅"},
+  {id:"team",     label:"Team",       icon:"👥"},
+  {id:"calendar", label:"Calendar",   icon:"🗓"},
+  {id:"timelog",  label:"Time Tracker",icon:"⏱"},
+  {id:"risks",    label:"Risk Register",icon:"⚠️"},
+  {id:"invoices", label:"Invoices",   icon:"🧾"},
+  {id:"reports",  label:"Reports",    icon:"📈"},
+  {id:"files",    label:"Files",      icon:"📎"},
+  {id:"chat",     label:"Messages",   icon:"💬"},
+  {id:"goals",    label:"OKR Goals",  icon:"🎯"},
+  {id:"settings", label:"Settings",   icon:"⚙️"},
+];
+
+const Sidebar=({active,setActive,user,onLogout,collapsed,setCollapsed})=>{
+  const restricted=["reports","invoices","risks"];
+  const visible=NAV_ITEMS.filter(n=>user.role==="Director"||!restricted.includes(n.id));
+  return(
+    <div style={{width:collapsed?64:230,minHeight:"100vh",background:"#fff",borderRight:"1px solid #f1f5f9",display:"flex",flexDirection:"column",transition:"width .3s",flexShrink:0,boxShadow:"2px 0 8px rgba(0,0,0,.03)",zIndex:100}}>
+      <div style={{padding:collapsed?"16px 0":"16px",display:"flex",alignItems:"center",gap:10,borderBottom:"1px solid #f8fafc",justifyContent:collapsed?"center":"flex-start"}}>
+        <div style={{width:36,height:36,borderRadius:11,background:"linear-gradient(135deg,#6366f1,#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:"0 4px 12px rgba(99,102,241,.3)"}}>⚡</div>
+        {!collapsed&&<div style={{flex:1}}><div style={{fontWeight:900,fontSize:16,color:"#0f172a",letterSpacing:"-0.5px"}}>NexFlow</div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,letterSpacing:".5px",textTransform:"uppercase"}}>Workspace</div></div>}
+        {!collapsed&&<button onClick={()=>setCollapsed(true)} style={{background:"none",border:"none",cursor:"pointer",color:"#cbd5e1",fontSize:16,padding:4}}>✕</button>}
+      </div>
+      <nav style={{flex:1,padding:"8px 0",overflowY:"auto"}}>
+        {visible.map(item=>{
+          const isA=active===item.id;
+          return(
+            <button key={item.id} onClick={()=>setActive(item.id)} title={collapsed?item.label:undefined} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:collapsed?"10px 0":"10px 14px",justifyContent:collapsed?"center":"flex-start",background:isA?"linear-gradient(90deg,#eef2ff,#f5f3ff)":"transparent",border:"none",cursor:"pointer",borderLeft:isA?"3px solid #6366f1":"3px solid transparent",transition:"all .15s",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+              <span style={{fontSize:17,lineHeight:1}}>{item.icon}</span>
+              {!collapsed&&<span style={{fontSize:13,fontWeight:isA?700:500,color:isA?"#6366f1":"#64748b"}}>{item.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      <div style={{padding:collapsed?"10px 0":"10px 12px",borderTop:"1px solid #f1f5f9"}}>
+        {collapsed
+          ?<button onClick={()=>setCollapsed(false)} style={{width:"100%",display:"flex",justifyContent:"center",padding:"8px 0",background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:18}}>☰</button>
+          :<div style={{display:"flex",alignItems:"center",gap:8,padding:8,borderRadius:12,background:"#f8fafc"}}>
+            <Av u={user} sz={30}/>
+            <div style={{flex:1,overflow:"hidden"}}><div style={{fontSize:12,fontWeight:700,color:"#0f172a",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{user.role}</div></div>
+            <button onClick={onLogout} title="Logout" style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:14}}>🚪</button>
+          </div>
+        }
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   TOPBAR
+═══════════════════════════════ */
+const TopBar=({title,subtitle,user,onToggle,onSearch,onNotif,notifDot,onShortcuts})=>(
+  <div style={{background:"#fff",borderBottom:"1px solid #f1f5f9",padding:"0 22px",height:62,display:"flex",alignItems:"center",gap:14,position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}>
+    <button onClick={onToggle} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:20,padding:6,borderRadius:8}}>☰</button>
+    <div style={{flex:1}}><h1 style={{margin:0,fontSize:17,fontWeight:800,color:"#0f172a",letterSpacing:"-0.5px"}}>{title}</h1>{subtitle&&<p style={{margin:0,fontSize:11,color:"#94a3b8"}}>{subtitle}</p>}</div>
+    <button onClick={onSearch} style={{display:"flex",alignItems:"center",gap:8,background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:12,padding:"8px 14px",cursor:"pointer",width:200,transition:"border .2s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="#6366f1"} onMouseLeave={e=>e.currentTarget.style.borderColor="#e2e8f0"}>
+      <span style={{fontSize:14}}>🔍</span>
+      <span style={{fontSize:13,color:"#94a3b8",flex:1,textAlign:"left"}}>Search…</span>
+      <kbd style={{fontSize:10,color:"#94a3b8",background:"#e2e8f0",padding:"1px 5px",borderRadius:4,fontFamily:"monospace"}}>⌘K</kbd>
+    </button>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <button onClick={onShortcuts} title="Shortcuts" style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:11,padding:"8px 10px",cursor:"pointer",fontSize:15}}>⚡</button>
+      <button onClick={onNotif} style={{background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:11,padding:"8px 10px",cursor:"pointer",position:"relative",fontSize:15}}>
+        🔔{notifDot&&<span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"#ef4444",border:"2px solid #fff"}}/>}
+      </button>
+      <Av u={user} sz={34}/>
+    </div>
+  </div>
+);
+
+/* ═══════════════════════════════
+   NOTIFICATIONS PANEL
+═══════════════════════════════ */
+const NotifsPanel=({onClose})=>{
+  const [notifs,setNotifs]=useState(INIT_NOTIFS);
+  const unread=notifs.filter(n=>!n.read).length;
+  return(
+    <div style={{position:"fixed",top:62,right:14,width:350,background:"#fff",borderRadius:20,boxShadow:"0 20px 60px rgba(0,0,0,.18)",border:"1px solid #f1f5f9",zIndex:500}}>
+      <div style={{padding:"14px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:14,fontWeight:800,color:"#0f172a"}}>Notifications</span>{unread>0&&<span style={{background:"#ef4444",color:"#fff",borderRadius:99,fontSize:11,fontWeight:700,padding:"1px 8px"}}>{unread}</span>}</div>
+        <div style={{display:"flex",gap:8}}>
+          {unread>0&&<button onClick={()=>setNotifs(p=>p.map(n=>({...n,read:true})))} style={{fontSize:11,color:"#6366f1",background:"#eef2ff",border:"none",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontWeight:700}}>Mark all read</button>}
+          <button onClick={onClose} style={{background:"#f1f5f9",border:"none",borderRadius:9,cursor:"pointer",width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>✕</button>
+        </div>
+      </div>
+      <div style={{maxHeight:380,overflowY:"auto"}}>
+        {notifs.map(n=>(
+          <div key={n.id} onClick={()=>setNotifs(p=>p.map(x=>x.id===n.id?{...x,read:true}:x))} style={{display:"flex",gap:12,padding:"13px 16px",borderBottom:"1px solid #f8fafc",cursor:"pointer",background:n.read?"#fff":"#f8faff"}}>
+            <div style={{width:36,height:36,borderRadius:11,background:n.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{n.icon}</div>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><span style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{n.title}</span>{!n.read&&<span style={{width:8,height:8,borderRadius:"50%",background:"#6366f1",flexShrink:0,marginTop:3}}/>}</div>
+              <div style={{fontSize:12,color:"#64748b",marginTop:2,lineHeight:1.4}}>{n.body}</div>
+              <div style={{fontSize:11,color:"#94a3b8",marginTop:3}}>{n.time}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   GLOBAL SEARCH
+═══════════════════════════════ */
+const SearchOverlay=({projects,tasks,onClose,onViewProject})=>{
+  const [q,setQ]=useState(""); const ref=useRef(null);
+  useEffect(()=>ref.current?.focus(),[]);
+  const mp=q.length>1?projects.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||p.tags.some(t=>t.toLowerCase().includes(q.toLowerCase()))):[]; 
+  const mt=q.length>1?tasks.filter(t=>t.title.toLowerCase().includes(q.toLowerCase())):[];
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:80,backdropFilter:"blur(3px)"}} onClick={onClose}>
+      <div style={{width:"100%",maxWidth:580,background:"#fff",borderRadius:20,boxShadow:"0 32px 80px rgba(0,0,0,.25)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid #f1f5f9"}}>
+          <span style={{fontSize:18}}>🔍</span>
+          <input ref={ref} value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Escape"&&onClose()} placeholder="Search projects, tasks…" style={{flex:1,border:"none",outline:"none",fontSize:16,color:"#0f172a",fontFamily:"'Plus Jakarta Sans',sans-serif",background:"transparent"}}/>
+          <kbd style={{fontSize:11,color:"#94a3b8",background:"#f1f5f9",padding:"2px 6px",borderRadius:5,fontFamily:"monospace"}}>ESC</kbd>
+        </div>
+        {q.length<2?(
+          <div style={{padding:"28px 20px",textAlign:"center",color:"#94a3b8",fontSize:13}}>
+            <div style={{fontSize:36,marginBottom:10}}>🔍</div>Type at least 2 characters to search
+            <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:14,flexWrap:"wrap"}}>
+              {["API","Design","Mobile","Security","Analytics"].map(s=>(
+                <button key={s} onClick={()=>setQ(s)} style={{fontSize:12,color:"#6366f1",background:"#eef2ff",border:"none",borderRadius:99,padding:"4px 12px",cursor:"pointer",fontWeight:700}}>{s}</button>
+              ))}
+            </div>
+          </div>
+        ):(mp.length+mt.length===0?(
+          <div style={{padding:"32px 20px",textAlign:"center",color:"#94a3b8",fontSize:13}}>No results for "<b style={{color:"#374151"}}>{q}</b>"</div>
+        ):(
+          <div style={{maxHeight:420,overflowY:"auto"}}>
+            {mp.length>0&&<><div style={{padding:"10px 20px 6px",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px"}}>Projects</div>
+            {mp.map(p=>{const st=S_CFG[p.status];return(
+              <div key={p.id} onClick={()=>{onViewProject(p);onClose();}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#f8fafc"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{width:36,height:36,borderRadius:10,background:"#eef2ff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📁</div>
+                <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{p.name}</div><div style={{fontSize:11,color:"#94a3b8"}}>{p.cat} · {p.progress}% done</div></div>
+                <Bdg cfg={st}/>
+              </div>
+            );})}</>}
+            {mt.length>0&&<><div style={{padding:"10px 20px 6px",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px"}}>Tasks</div>
+            {mt.map(t=>{const ts=T_CFG[t.status];return(
+              <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 20px"}}>
+                <div style={{width:36,height:36,borderRadius:10,background:"#f0fdf4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>✅</div>
+                <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:"#0f172a"}}>{t.title}</div><div style={{fontSize:11,color:"#94a3b8"}}>Due {t.due}</div></div>
+                <Bdg cfg={ts}/>
+              </div>
+            );})}</>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   SHORTCUTS MODAL
+═══════════════════════════════ */
+const ShortcutsModal=({onClose})=>{
+  const sc=[["Ctrl + K","Open global search"],["Ctrl + /","Show keyboard shortcuts"],["G + D","Go to Dashboard"],["G + P","Go to Projects"],["G + T","Go to Tasks"],["G + C","Go to Calendar"],["G + R","Go to Reports"],["Esc","Close modal / overlay"]];
+  return(
+    <Modal title="⌨️ Keyboard Shortcuts" onClose={onClose} width={420}>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {sc.map(([k,d])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",borderRadius:10,background:"#f8fafc"}}>
+            <span style={{fontSize:13,color:"#374151"}}>{d}</span>
+            <kbd style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"3px 10px",borderRadius:7,fontFamily:"monospace",fontWeight:700,border:"1px solid #c7d2fe"}}>{k}</kbd>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+};
+
+/* ═══════════════════════════════
+   STICKY NOTES
+═══════════════════════════════ */
+const StickyNotes=()=>{
+  const COLS=["#fef9c3","#dcfce7","#dbeafe","#fce7f3","#f3e8ff"];
+  const [notes,setNotes]=useState([{id:1,text:"Review API spec before Thursday",color:"#fef9c3"},{id:2,text:"Ask Jordan about mobile timeline",color:"#dcfce7"}]);
+  const [show,setShow]=useState(false);
+  return(
+    <>
+      <button onClick={()=>setShow(!show)} title="Sticky Notes" style={{position:"fixed",bottom:24,right:24,width:50,height:50,borderRadius:"50%",background:"linear-gradient(135deg,#f59e0b,#fbbf24)",border:"none",cursor:"pointer",boxShadow:"0 4px 16px rgba(245,158,11,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,fontSize:22}}>📝</button>
+      {show&&(
+        <div style={{position:"fixed",bottom:86,right:14,width:380,background:"#fff",borderRadius:20,boxShadow:"0 20px 60px rgba(0,0,0,.18)",border:"1px solid #f1f5f9",zIndex:200}}>
+          <div style={{padding:"13px 16px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:14,fontWeight:800,color:"#0f172a"}}>📝 Sticky Notes</span>
+            <div style={{display:"flex",gap:8}}>
+              <Btn sm icon="➕" onClick={()=>setNotes(p=>[...p,{id:uid(),text:"New note…",color:COLS[Math.floor(Math.random()*COLS.length)]}])}>Add</Btn>
+              <button onClick={()=>setShow(false)} style={{background:"#f1f5f9",border:"none",borderRadius:9,cursor:"pointer",width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>✕</button>
+            </div>
+          </div>
+          <div style={{padding:12,display:"flex",flexWrap:"wrap",gap:8,maxHeight:280,overflowY:"auto"}}>
+            {notes.map(n=>(
+              <div key={n.id} style={{background:n.color,borderRadius:12,padding:11,width:"calc(50% - 4px)",boxSizing:"border-box",boxShadow:"0 2px 8px rgba(0,0,0,.08)",position:"relative"}}>
+                <textarea value={n.text} onChange={e=>setNotes(p=>p.map(x=>x.id===n.id?{...x,text:e.target.value}:x))} style={{width:"100%",background:"transparent",border:"none",outline:"none",resize:"none",fontSize:12,color:"#374151",fontFamily:"'Plus Jakarta Sans',sans-serif",lineHeight:1.5,minHeight:60}}/>
+                <button onClick={()=>setNotes(p=>p.filter(x=>x.id!==n.id))} style={{position:"absolute",top:5,right:5,background:"rgba(0,0,0,.1)",border:"none",borderRadius:5,cursor:"pointer",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9}}>✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+/* ═══════════════════════════════
+   DASHBOARD
+═══════════════════════════════ */
+const Dashboard=({projects,tasks,users,user,activity,onNewProject})=>{
+  const total=projects.length,active=projects.filter(p=>p.status==="active").length;
+  const mine=tasks.filter(t=>t.assignee===user.id),doneMine=mine.filter(t=>t.status==="done").length;
+  const overdue=tasks.filter(t=>dLeft(t.due)<0&&t.status!=="done").length;
+  const tB=projects.reduce((a,p)=>a+p.budget,0),tS=projects.reduce((a,p)=>a+p.spent,0);
+  const pinned=projects.filter(p=>p.pinned);
+  return(
+    <div style={{padding:24}}>
+      {/* Hero banner */}
+      <div style={{background:"linear-gradient(135deg,#6366f1 0%,#818cf8 60%,#a5b4fc 100%)",borderRadius:20,padding:"24px 28px",marginBottom:20,position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",right:-20,top:-20,width:160,height:160,borderRadius:"50%",background:"rgba(255,255,255,.07)"}}/>
+        <div style={{position:"absolute",right:40,bottom:-30,width:100,height:100,borderRadius:"50%",background:"rgba(255,255,255,.05)"}}/>
+        <h2 style={{margin:"0 0 5px",fontSize:21,fontWeight:900,color:"#fff",letterSpacing:"-0.5px"}}>Good morning, {user.name.split(" ")[0]} 👋</h2>
+        <p style={{margin:"0 0 16px",color:"rgba(255,255,255,.75)",fontSize:13}}>You have <b>{mine.filter(t=>t.status!=="done").length}</b> open tasks and <b style={{color:overdue?"#fca5a5":"inherit"}}>{overdue}</b> overdue. Let's crush it!</p>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          <Btn onClick={onNewProject} icon="➕" xs={{background:"rgba(255,255,255,.2)",color:"#fff",backdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,.3)",boxShadow:"none"}}>New Project</Btn>
+        </div>
+      </div>
+      {/* Stats */}
+      <div style={{display:"flex",gap:14,marginBottom:20,flexWrap:"wrap"}}>
+        <StatCard label="Total Projects" value={total} sub={`${active} active`} icon="📁" color="#6366f1" trend={12}/>
+        <StatCard label="My Tasks" value={mine.length} sub={`${doneMine} completed`} icon="✅" color="#0ea5e9" trend={5}/>
+        <StatCard label="Overdue" value={overdue} sub="need attention" icon="⏰" color="#ef4444" trend={-8}/>
+        <StatCard label="Budget Used" value={pct(tS,tB)+"%"} sub={`${cur(tS)} / ${cur(tB)}`} icon="💰" color="#10b981"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:18}}>
+        <div>
+          {pinned.length>0&&<div style={{marginBottom:18}}>
+            <p style={{fontSize:13,fontWeight:700,color:"#0f172a",margin:"0 0 10px",display:"flex",alignItems:"center",gap:5}}>⭐ Pinned Projects</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
+              {pinned.map(p=><div key={p.id} style={{background:"#fffbeb",border:"1.5px solid #fde68a",borderRadius:13,padding:14}}>
+                <div style={{fontWeight:700,fontSize:13,color:"#0f172a",marginBottom:6}}>{p.name}</div>
+                <Bar value={p.progress} color="#f59e0b"/>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:11}}><span style={{color:"#92400e"}}>{p.progress}%</span><span style={{color:"#92400e"}}>{dLeft(p.deadline)}d left</span></div>
+              </div>)}
+            </div>
+          </div>}
+          <p style={{fontSize:13,fontWeight:700,color:"#0f172a",margin:"0 0 10px"}}>Project Overview</p>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {[...projects].sort((a,b)=>b.progress-a.progress).slice(0,5).map(p=>{
+              const st=S_CFG[p.status]; const mems=p.team.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+              return<div key={p.id} style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:13,padding:"12px 16px",display:"flex",alignItems:"center",gap:14}}>
+                <div style={{flex:1}}><div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5}}><span style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{p.name}</span><Bdg cfg={st}/></div><Bar value={p.progress} h={5}/></div>
+                <div style={{textAlign:"right",minWidth:60}}><div style={{fontSize:15,fontWeight:800,color:"#0f172a"}}>{p.progress}%</div><div style={{fontSize:10,color:"#94a3b8"}}>{dLeft(p.deadline)}d</div></div>
+                <div style={{display:"flex"}}>{mems.slice(0,2).map((u,i)=><div key={u.id} style={{marginLeft:i>0?-6:0}}><Av u={u} sz={24}/></div>)}</div>
+              </div>;
+            })}
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,padding:18}}>
+            <p style={{fontSize:13,fontWeight:700,color:"#0f172a",margin:"0 0 12px",display:"flex",alignItems:"center",gap:5}}>⚡ Recent Activity</p>
+            {activity.map(a=>{const au=users.find(u=>u.id===a.uid);return<div key={a.id} style={{display:"flex",gap:9,marginBottom:10}}><Av u={au} sz={26}/><div><div style={{fontSize:11,color:"#374151"}}><b style={{color:"#0f172a"}}>{au?.name}</b> {a.action}</div><div style={{fontSize:10,color:"#6366f1"}}>{a.detail}</div><div style={{fontSize:9,color:"#94a3b8"}}>{a.time}</div></div></div>;})}
+          </div>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,padding:18}}>
+            <p style={{fontSize:13,fontWeight:700,color:"#0f172a",margin:"0 0 12px"}}>📊 Status Breakdown</p>
+            {Object.entries(S_CFG).map(([k,v])=>{const cnt=projects.filter(p=>p.status===k).length;return<div key={k} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:11,color:"#374151",fontWeight:600}}>{v.label}</span><span style={{fontSize:11,fontWeight:700,color:"#0f172a"}}>{cnt}</span></div><Bar value={pct(cnt,projects.length)} color={v.color} h={6}/></div>;})}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   PROJECT CARD
+═══════════════════════════════ */
+const ProjCard=({project:p,users,onClick,onPin,onDelete,canDel})=>{
+  const st=S_CFG[p.status]||S_CFG.planning; const pr=P_CFG[p.priority]||P_CFG.medium;
+  const dl=dLeft(p.deadline); const mems=p.team.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+  const hc=p.health>=75?"#10b981":p.health>=50?"#f59e0b":"#ef4444";
+  return(
+    <div onClick={onClick} style={{background:"#fff",borderRadius:18,padding:20,cursor:"pointer",border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)",transition:"all .2s",borderTop:`3px solid ${P_CFG[p.priority].c}`}} onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 8px 28px rgba(0,0,0,.1)";e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,.04)";e.currentTarget.style.transform="none";}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+        <Bdg cfg={st}/>
+        <div style={{display:"flex",gap:4}}>
+          <button onClick={e=>{e.stopPropagation();onPin(p.id);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:p.pinned?"#f59e0b":"#cbd5e1"}}>{p.pinned?"⭐":"☆"}</button>
+          {canDel&&<button onClick={e=>{e.stopPropagation();onDelete(p.id);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:14,color:"#f87171"}}>🗑</button>}
+        </div>
+      </div>
+      <h3 style={{margin:"0 0 4px",fontSize:14,fontWeight:800,color:"#0f172a"}}>{p.name}</h3>
+      <p style={{margin:"0 0 10px",fontSize:12,color:"#94a3b8",lineHeight:1.5,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}}>{p.desc}</p>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:10}}>
+        <span style={{fontSize:10,fontWeight:700,color:hc,background:hc+"15",padding:"2px 8px",borderRadius:99}}>● Health {p.health}%</span>
+        <span style={{fontSize:10,color:pr.c,fontWeight:700,background:pr.c+"15",padding:"2px 8px",borderRadius:99}}>{pr.label}</span>
+      </div>
+      <div style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:11,color:"#64748b",fontWeight:600}}>Progress</span><span style={{fontSize:11,fontWeight:700,color:"#0f172a"}}>{p.progress}%</span></div><Bar value={p.progress}/></div>
+      <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:10}}>{p.tags.slice(0,3).map(t=><span key={t} style={{fontSize:10,fontWeight:600,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:99}}>{t}</span>)}</div>
+      <div style={{display:"flex",gap:3,marginBottom:10}}>{p.milestones.map(m=><div key={m.id} title={m.t} style={{flex:1,height:4,borderRadius:99,background:m.done?"#6366f1":"#e2e8f0"}}/>)}</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:"1px solid #f8fafc",paddingTop:10}}>
+        <div style={{display:"flex"}}>{mems.slice(0,3).map((u,i)=><div key={u.id} style={{marginLeft:i>0?-7:0,border:"2px solid #fff",borderRadius:"50%"}}><Av u={u} sz={24}/></div>)}</div>
+        <span style={{fontSize:11,color:dl<7&&dl>=0?"#ef4444":"#94a3b8",fontWeight:600}}>⏰ {dl<0?"Overdue":`${dl}d left`}</span>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   PROJECTS PAGE
+═══════════════════════════════ */
+const ProjectsPage=({projects,setProjects,users,user,tasks,onView})=>{
+  const [view,setView]=useState("grid"); const [filt,setFilt]=useState("all"); const [sort,setSort]=useState("deadline"); const [search,setSearch]=useState(""); const [show,setShow]=useState(false);
+  const [form,setForm]=useState({name:"",desc:"",status:"planning",priority:"medium",deadline:"",budget:"",cat:"Engineering",tags:""});
+  const canCreate=user.role!=="Developer"; const canDel=user.role==="Director";
+  const filtered=projects.filter(p=>(filt==="all"||p.status===filt)&&(p.name.toLowerCase().includes(search.toLowerCase())||p.desc.toLowerCase().includes(search.toLowerCase()))).sort((a,b)=>{
+    if(sort==="deadline")return new Date(a.deadline)-new Date(b.deadline);
+    if(sort==="progress")return b.progress-a.progress;
+    if(sort==="priority"){const o={critical:0,high:1,medium:2,low:3};return o[a.priority]-o[b.priority];}
+    if(sort==="health")return b.health-a.health;
+    return 0;
+  });
+  const create=()=>{
+    if(!form.name||!form.deadline)return;
+    setProjects(prev=>[...prev,{id:uid(),...form,budget:parseInt(form.budget)||0,spent:0,progress:0,team:[user.id],pinned:false,tags:form.tags.split(",").map(t=>t.trim()).filter(Boolean),health:100,milestones:[]}]);
+    setShow(false);setForm({name:"",desc:"",status:"planning",priority:"medium",deadline:"",budget:"",cat:"Engineering",tags:""});
+  };
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18,flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:"#f1f5f9",borderRadius:11,padding:3,gap:2,flexWrap:"wrap"}}>
+          {[["all","All"],...Object.entries(S_CFG).map(([k,v])=>[k,v.label])].map(([k,l])=>(
+            <button key={k} onClick={()=>setFilt(k)} style={{padding:"6px 11px",borderRadius:9,border:"none",cursor:"pointer",background:filt===k?"#fff":"transparent",color:filt===k?"#0f172a":"#64748b",fontSize:12,fontWeight:600,boxShadow:filt===k?"0 1px 4px rgba(0,0,0,.1)":"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:7,background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,padding:"7px 12px"}}>
+          <span style={{fontSize:13}}>🔍</span>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search projects…" style={{border:"none",background:"none",outline:"none",fontSize:12,fontFamily:"'Plus Jakarta Sans',sans-serif",width:140}}/>
+        </div>
+        <Sel value={sort} onChange={e=>setSort(e.target.value)} style={{width:160}}>
+          <option value="deadline">Sort: Deadline</option>
+          <option value="progress">Sort: Progress</option>
+          <option value="priority">Sort: Priority</option>
+          <option value="health">Sort: Health</option>
+        </Sel>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          <button onClick={()=>setView("grid")} style={{padding:"8px 10px",borderRadius:10,border:`1.5px solid ${view==="grid"?"#6366f1":"#e2e8f0"}`,background:view==="grid"?"#eef2ff":"#fff",cursor:"pointer",fontSize:15}}>⊞</button>
+          <button onClick={()=>setView("list")} style={{padding:"8px 10px",borderRadius:10,border:`1.5px solid ${view==="list"?"#6366f1":"#e2e8f0"}`,background:view==="list"?"#eef2ff":"#fff",cursor:"pointer",fontSize:15}}>☰</button>
+          {canCreate&&<Btn onClick={()=>setShow(true)} icon="➕">New Project</Btn>}
+        </div>
+      </div>
+      <p style={{fontSize:12,color:"#94a3b8",marginBottom:14,fontWeight:600}}>{filtered.length} project{filtered.length!==1?"s":""} found</p>
+      {view==="grid"
+        ?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:16}}>
+          {filtered.map(p=><ProjCard key={p.id} project={p} users={users} canDel={canDel} onClick={()=>onView(p)} onPin={id=>setProjects(prev=>prev.map(pr=>pr.id===id?{...pr,pinned:!pr.pinned}:pr))} onDelete={id=>setProjects(prev=>prev.filter(pr=>pr.id!==id))}/>)}
+         </div>
+        :<div style={{background:"#fff",borderRadius:18,border:"1px solid #f1f5f9",overflow:"auto"}}>
+          <table style={{minWidth:700}}>
+            <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["Project","Status","Priority","Health","Progress","Deadline","Budget"].map(h=><th key={h} style={{padding:"11px 16px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".5px"}}>{h}</th>)}</tr></thead>
+            <tbody>{filtered.map(p=>{
+              const st=S_CFG[p.status]; const pr=P_CFG[p.priority]; const hc=p.health>=75?"#10b981":p.health>=50?"#f59e0b":"#ef4444";
+              return<tr key={p.id} onClick={()=>onView(p)} style={{borderBottom:"1px solid #f8fafc",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.background="#fafbff"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <td style={{padding:"13px 16px"}}><div style={{fontWeight:700,fontSize:13,color:"#0f172a"}}>{p.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{p.cat}</div></td>
+                <td style={{padding:"13px 16px"}}><Bdg cfg={st}/></td>
+                <td style={{padding:"13px 16px"}}><span style={{color:pr.c,fontWeight:700,fontSize:12}}>{pr.label}</span></td>
+                <td style={{padding:"13px 16px"}}><span style={{color:hc,fontWeight:700,fontSize:12}}>{p.health}%</span></td>
+                <td style={{padding:"13px 16px",minWidth:110}}><div style={{display:"flex",alignItems:"center",gap:6}}><div style={{flex:1}}><Bar value={p.progress} h={5}/></div><span style={{fontSize:11,fontWeight:700,minWidth:28}}>{p.progress}%</span></div></td>
+                <td style={{padding:"13px 16px",fontSize:12,color:dLeft(p.deadline)<7?"#ef4444":"#374151",fontWeight:600}}>{p.deadline}</td>
+                <td style={{padding:"13px 16px"}}><div style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{cur(p.spent)}</div><div style={{fontSize:10,color:"#94a3b8"}}>/ {cur(p.budget)}</div></td>
+              </tr>;
+            })}</tbody>
+          </table>
+         </div>
+      }
+      {show&&<Modal title="Create New Project" onClose={()=>setShow(false)}>
+        <FF label="Project Name *"><Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Website Redesign"/></FF>
+        <FF label="Description"><textarea value={form.desc} onChange={e=>setForm(f=>({...f,desc:e.target.value}))} rows={3} placeholder="Brief description…" style={{width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"'Plus Jakarta Sans',sans-serif",resize:"vertical"}}/></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Status"><Sel value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{Object.entries(S_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Priority"><Sel value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{Object.entries(P_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Deadline *"><Inp type="date" value={form.deadline} onChange={e=>setForm(f=>({...f,deadline:e.target.value}))}/></FF>
+          <FF label="Budget ($)"><Inp type="number" value={form.budget} onChange={e=>setForm(f=>({...f,budget:e.target.value}))} placeholder="50000"/></FF>
+        </div>
+        <FF label="Category"><Sel value={form.cat} onChange={e=>setForm(f=>({...f,cat:e.target.value}))}>{["Engineering","Design","Marketing","Analytics","Security","Mobile","Operations"].map(c=><option key={c}>{c}</option>)}</Sel></FF>
+        <FF label="Tags (comma separated)"><Inp value={form.tags} onChange={e=>setForm(f=>({...f,tags:e.target.value}))} placeholder="UI, Backend, API"/></FF>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end",marginTop:6}}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={create} icon="✅">Create Project</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   PROJECT DETAIL
+═══════════════════════════════ */
+const ProjectDetail=({project:p,allTasks,users,user,onBack,setProjects,setTasks})=>{
+  const [tab,setTab]=useState("overview"); const [showTask,setShowTask]=useState(false); const [showEdit,setShowEdit]=useState(false);
+  const [form,setForm]=useState({...p});
+  const [nT,setNT]=useState({title:"",assignee:user.id,priority:"medium",due:"",status:"todo",tEst:4,labels:""});
+  const pT=allTasks.filter(t=>t.pid===p.id); const st=S_CFG[p.status]; const pr=P_CFG[p.priority];
+  const mems=p.team.map(id=>users.find(u=>u.id===id)).filter(Boolean);
+  const addTask=()=>{if(!nT.title)return;setTasks(prev=>[...prev,{id:uid(),pid:p.id,...nT,labels:nT.labels.split(",").map(l=>l.trim()).filter(Boolean),tLogged:0}]);setShowTask(false);setNT({title:"",assignee:user.id,priority:"medium",due:"",status:"todo",tEst:4,labels:""});};
+  const save=()=>{setProjects(prev=>prev.map(x=>x.id===p.id?{...x,...form}:x));setShowEdit(false);};
+  const move=(id,s)=>setTasks(prev=>prev.map(t=>t.id===id?{...t,status:s}:t));
+  const done=pT.filter(t=>t.status==="done").length;
+  const COLS=["todo","inprogress","review","done"];
+  return(
+    <div style={{padding:24}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",color:"#6366f1",fontSize:13,fontWeight:700,marginBottom:14,padding:0}}>← Back to Projects</button>
+      <div style={{background:"#fff",borderRadius:20,padding:24,border:"1px solid #f1f5f9",marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><Bdg cfg={st}/><span style={{color:pr.c,fontWeight:700,fontSize:12}}>{pr.label}</span>{p.pinned&&<span style={{color:"#f59e0b",fontSize:11,fontWeight:700}}>⭐ Pinned</span>}</div>
+            <h2 style={{margin:"0 0 5px",fontSize:22,fontWeight:900,color:"#0f172a",letterSpacing:"-0.5px"}}>{p.name}</h2>
+            <p style={{margin:0,color:"#64748b",fontSize:13}}>{p.desc}</p>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            {user.role!=="Developer"&&<Btn sm variant="secondary" icon="✏️" onClick={()=>setShowEdit(true)}>Edit</Btn>}
+            <div style={{textAlign:"right"}}><div style={{fontSize:30,fontWeight:900,color:"#6366f1",letterSpacing:"-2px"}}>{p.progress}%</div><div style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>Complete</div></div>
+          </div>
+        </div>
+        <Bar value={p.progress} h={8}/>
+        <div style={{display:"flex",gap:22,marginTop:16,flexWrap:"wrap"}}>
+          {[["DEADLINE",`${p.deadline} (${dLeft(p.deadline)}d)`,dLeft(p.deadline)<7?"#ef4444":"#0f172a"],["BUDGET",`${cur(p.spent)} / ${cur(p.budget)}`,"#0f172a"],["CATEGORY",p.cat,"#0f172a"],["TASKS",`${done}/${pT.length} done`,"#0f172a"],["HEALTH",`${p.health}%`,p.health>=75?"#10b981":p.health>=50?"#f59e0b":"#ef4444"]].map(([k,v,c])=>(
+            <div key={k}><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,letterSpacing:".5px",marginBottom:2}}>{k}</div><div style={{fontSize:13,fontWeight:700,color:c}}>{v}</div></div>
+          ))}
+          <div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,letterSpacing:".5px",marginBottom:2}}>TEAM</div><div style={{display:"flex"}}>{mems.map((u,i)=><div key={u.id} style={{marginLeft:i>0?-6:0}}><Av u={u} sz={26}/></div>)}</div></div>
+        </div>
+        {p.milestones.length>0&&<div style={{marginTop:16,background:"#f8fafc",borderRadius:13,padding:13}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:12,fontWeight:700,color:"#374151"}}>Milestones ({p.milestones.filter(m=>m.done).length}/{p.milestones.length})</span><span style={{fontSize:11,fontWeight:700,color:"#6366f1"}}>{pct(p.milestones.filter(m=>m.done).length,p.milestones.length)}%</span></div>
+          <Bar value={pct(p.milestones.filter(m=>m.done).length,p.milestones.length)} h={5}/>
+          <div style={{display:"flex",gap:7,marginTop:10,flexWrap:"wrap"}}>
+            {p.milestones.map(m=><button key={m.id} onClick={()=>setProjects(prev=>prev.map(x=>x.id===p.id?{...x,milestones:x.milestones.map(ms=>ms.id===m.id?{...ms,done:!ms.done}:ms)}:x))} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:99,border:`1.5px solid ${m.done?"#10b981":"#e2e8f0"}`,background:m.done?"#d1fae5":"#fff",cursor:"pointer",fontSize:11,fontWeight:600,color:m.done?"#059669":"#64748b"}}>{m.done?"✓":"○"} {m.t}</button>)}
+          </div>
+        </div>}
+      </div>
+      {/* Tabs */}
+      <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:12,padding:3,marginBottom:16,width:"fit-content"}}>
+        {[["overview","📋 Overview"],["kanban","🗂 Kanban"],["budget","💰 Budget"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 16px",borderRadius:10,border:"none",cursor:"pointer",background:tab===k?"#fff":"transparent",color:tab===k?"#0f172a":"#64748b",fontSize:12,fontWeight:700,boxShadow:tab===k?"0 1px 4px rgba(0,0,0,.1)":"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"1fr 270px",gap:16}}>
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><h3 style={{margin:0,fontSize:14,fontWeight:700,color:"#0f172a"}}>Tasks</h3><Btn sm onClick={()=>setShowTask(true)} icon="➕">Add Task</Btn></div>
+          {pT.length===0&&<div style={{textAlign:"center",padding:36,color:"#94a3b8",background:"#f8fafc",borderRadius:13,border:"1px dashed #e2e8f0"}}>No tasks yet — add one!</div>}
+          {pT.map(t=>{const ts=T_CFG[t.status]; const tp=P_CFG[t.priority]; const au=users.find(u=>u.id===t.assignee);
+            return<div key={t.id} style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:12,padding:"12px 15px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
+              <button onClick={()=>move(t.id,t.status==="done"?"todo":"done")} style={{width:19,height:19,borderRadius:6,border:`2px solid ${t.status==="done"?"#10b981":"#cbd5e1"}`,background:t.status==="done"?"#10b981":"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff"}}>{t.status==="done"&&"✓"}</button>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:t.status==="done"?"#94a3b8":"#0f172a",textDecoration:t.status==="done"?"line-through":"none"}}>{t.title}</div>
+                <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4}}>
+                  <div style={{width:70}}><Bar value={pct(t.tLogged,t.tEst)} h={4} color="#0ea5e9"/></div>
+                  <span style={{fontSize:10,color:"#94a3b8"}}>{t.tLogged}h/{t.tEst}h</span>
+                  {t.labels?.map(l=><span key={l} style={{fontSize:9,fontWeight:700,color:"#6366f1",background:"#eef2ff",padding:"1px 6px",borderRadius:99}}>{l}</span>)}
+                </div>
+              </div>
+              <Bdg cfg={ts}/><span style={{fontSize:10,color:tp.c,fontWeight:700}}>{tp.label}</span><Av u={au} sz={22}/>
+            </div>;
+          })}
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:16,padding:18}}>
+            <h4 style={{margin:"0 0 12px",fontSize:13,fontWeight:700,color:"#0f172a"}}>💰 Budget</h4>
+            <Bar value={pct(p.spent,p.budget)} color={pct(p.spent,p.budget)>85?"#ef4444":"#6366f1"}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}><span style={{fontSize:12,color:"#64748b"}}>Spent</span><span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{cur(p.spent)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}><span style={{fontSize:12,color:"#64748b"}}>Remaining</span><span style={{fontSize:12,fontWeight:700,color:p.budget-p.spent<5000?"#ef4444":"#10b981"}}>{cur(p.budget-p.spent)}</span></div>
+          </div>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:16,padding:18}}>
+            <h4 style={{margin:"0 0 12px",fontSize:13,fontWeight:700,color:"#0f172a"}}>👥 Team</h4>
+            {mems.map(u=><div key={u.id} style={{display:"flex",alignItems:"center",gap:9,marginBottom:10}}><Av u={u} sz={30}/><div><div style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{u.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{u.role}</div></div></div>)}
+          </div>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:16,padding:18}}>
+            <h4 style={{margin:"0 0 10px",fontSize:13,fontWeight:700,color:"#0f172a"}}>🏷 Tags</h4>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{p.tags.map(t=><span key={t} style={{fontSize:11,fontWeight:600,color:"#6366f1",background:"#eef2ff",padding:"3px 10px",borderRadius:99}}>{t}</span>)}</div>
+          </div>
+        </div>
+      </div>}
+      {tab==="kanban"&&<div>
+        <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}><Btn sm onClick={()=>setShowTask(true)} icon="➕">Add Task</Btn></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+          {COLS.map(col=>{
+            const ts=T_CFG[col]; const colTasks=pT.filter(t=>t.status===col); const next={todo:"inprogress",inprogress:"review",review:"done",done:"todo"};
+            return<div key={col} style={{background:"#f8fafc",borderRadius:15,padding:12,minHeight:280}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:12}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:ts.c,display:"inline-block"}}/>
+                <span style={{fontSize:12,fontWeight:700,color:"#374151"}}>{ts.label}</span>
+                <span style={{marginLeft:"auto",background:ts.c+"22",color:ts.c,borderRadius:99,fontSize:10,fontWeight:700,padding:"1px 7px"}}>{colTasks.length}</span>
+              </div>
+              {colTasks.map(t=>{const au=users.find(u=>u.id===t.assignee); const tp=P_CFG[t.priority];
+                return<div key={t.id} style={{background:"#fff",borderRadius:11,padding:11,marginBottom:8,border:"1px solid #f1f5f9",boxShadow:"0 1px 3px rgba(0,0,0,.04)",borderLeft:`3px solid ${tp.c}`}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#0f172a",marginBottom:7}}>{t.title}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <Av u={au} sz={20}/>
+                    <span style={{fontSize:9,color:"#94a3b8"}}>{t.due}</span>
+                    <button onClick={()=>move(t.id,next[col])} style={{fontSize:9,color:ts.c,background:ts.c+"18",border:"none",borderRadius:5,padding:"2px 7px",cursor:"pointer",fontWeight:700}}>→</button>
+                  </div>
+                </div>;
+              })}
+            </div>;
+          })}
+        </div>
+      </div>}
+      {tab==="budget"&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,padding:22}}>
+          <h3 style={{margin:"0 0 18px",fontSize:14,fontWeight:700,color:"#0f172a"}}>Budget Breakdown</h3>
+          {[["Total Budget",cur(p.budget),"#6366f1"],["Amount Spent",cur(p.spent),"#ef4444"],["Remaining",cur(p.budget-p.spent),p.budget-p.spent<5000?"#ef4444":"#10b981"],["Burn Rate",pct(p.spent,p.budget)+"%","#f59e0b"]].map(([l,v,c])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f8fafc"}}>
+              <span style={{fontSize:13,color:"#64748b"}}>{l}</span>
+              <span style={{fontSize:15,fontWeight:800,color:c}}>{v}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,padding:22}}>
+          <h3 style={{margin:"0 0 18px",fontSize:14,fontWeight:700,color:"#0f172a"}}>Spending Progress</h3>
+          <div style={{marginBottom:16}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:"#64748b"}}>Budget utilization</span><span style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{pct(p.spent,p.budget)}%</span></div><Bar value={pct(p.spent,p.budget)} h={14} color={pct(p.spent,p.budget)>85?"#ef4444":"#6366f1"}/></div>
+          <div style={{background:pct(p.spent,p.budget)>85?"#fef2f2":"#f0fdf4",borderRadius:12,padding:14,marginTop:12}}>
+            <div style={{fontSize:13,fontWeight:700,color:pct(p.spent,p.budget)>85?"#dc2626":"#059669"}}>{pct(p.spent,p.budget)>85?"⚠️ Budget warning":"✅ Budget on track"}</div>
+            <div style={{fontSize:12,color:"#64748b",marginTop:4}}>{pct(p.spent,p.budget)>85?"Consider reviewing scope or requesting additional budget.":"Spending is within acceptable range."}</div>
+          </div>
+        </div>
+      </div>}
+      {showTask&&<Modal title="Add Task" onClose={()=>setShowTask(false)}>
+        <FF label="Task Title *"><Inp value={nT.title} onChange={e=>setNT(t=>({...t,title:e.target.value}))} placeholder="e.g. Build login screen"/></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Assignee"><Sel value={nT.assignee} onChange={e=>setNT(t=>({...t,assignee:parseInt(e.target.value)}))}>{users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Sel></FF>
+          <FF label="Priority"><Sel value={nT.priority} onChange={e=>setNT(t=>({...t,priority:e.target.value}))}>{Object.entries(P_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Status"><Sel value={nT.status} onChange={e=>setNT(t=>({...t,status:e.target.value}))}>{Object.entries(T_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Due Date"><Inp type="date" value={nT.due} onChange={e=>setNT(t=>({...t,due:e.target.value}))}/></FF>
+          <FF label="Estimate (hrs)"><Inp type="number" value={nT.tEst} onChange={e=>setNT(t=>({...t,tEst:parseInt(e.target.value)||4}))}/></FF>
+          <FF label="Labels (comma sep)"><Inp value={nT.labels} onChange={e=>setNT(t=>({...t,labels:e.target.value}))} placeholder="Dev, QA"/></FF>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShowTask(false)}>Cancel</Btn><Btn onClick={addTask} icon="✅">Add Task</Btn></div>
+      </Modal>}
+      {showEdit&&<Modal title="Edit Project" onClose={()=>setShowEdit(false)}>
+        <FF label="Name"><Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Status"><Sel value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{Object.entries(S_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Priority"><Sel value={form.priority} onChange={e=>setForm(f=>({...f,priority:e.target.value}))}>{Object.entries(P_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Sel></FF>
+          <FF label="Progress (%)"><Inp type="number" min={0} max={100} value={form.progress} onChange={e=>setForm(f=>({...f,progress:parseInt(e.target.value)||0}))}/></FF>
+          <FF label="Health Score"><Inp type="number" min={0} max={100} value={form.health} onChange={e=>setForm(f=>({...f,health:parseInt(e.target.value)||0}))}/></FF>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShowEdit(false)}>Cancel</Btn><Btn onClick={save} icon="✅">Save</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   TASKS PAGE
+═══════════════════════════════ */
+const TasksPage=({tasks,setTasks,projects,users,user})=>{
+  const [filt,setFilt]=useState("mine");
+  const shown=tasks.filter(t=>filt==="all"?true:filt==="mine"?t.assignee===user.id:t.status===filt);
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",gap:5,marginBottom:18,background:"#f1f5f9",borderRadius:11,padding:3,width:"fit-content",flexWrap:"wrap"}}>
+        {[["all","All"],["mine","Mine"],["todo","To Do"],["inprogress","In Progress"],["review","Review"],["done","Done"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFilt(k)} style={{padding:"6px 12px",borderRadius:9,border:"none",cursor:"pointer",background:filt===k?"#fff":"transparent",color:filt===k?"#0f172a":"#64748b",fontSize:12,fontWeight:600,boxShadow:filt===k?"0 1px 4px rgba(0,0,0,.1)":"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      <div style={{background:"#fff",borderRadius:18,border:"1px solid #f1f5f9",overflow:"auto"}}>
+        <table style={{minWidth:700}}>
+          <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["","Task","Project","Assignee","Status","Priority","Time","Due",""].map((h,i)=><th key={i} style={{padding:"11px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <tbody>{shown.map(t=>{
+            const proj=projects.find(p=>p.id===t.pid); const au=users.find(u=>u.id===t.assignee); const ts=T_CFG[t.status]; const tp=P_CFG[t.priority]; const dl=dLeft(t.due);
+            return<tr key={t.id} style={{borderBottom:"1px solid #f8fafc"}}>
+              <td style={{padding:"11px 14px"}}><button onClick={()=>setTasks(prev=>prev.map(tk=>tk.id===t.id?{...tk,status:tk.status==="done"?"todo":"done"}:tk))} style={{width:19,height:19,borderRadius:6,border:`2px solid ${t.status==="done"?"#10b981":"#cbd5e1"}`,background:t.status==="done"?"#10b981":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#fff"}}>{t.status==="done"&&"✓"}</button></td>
+              <td style={{padding:"11px 14px"}}><div style={{fontSize:13,fontWeight:600,color:t.status==="done"?"#94a3b8":"#0f172a",textDecoration:t.status==="done"?"line-through":"none"}}>{t.title}</div><div style={{display:"flex",gap:4,marginTop:3}}>{t.labels?.map(l=><span key={l} style={{fontSize:9,fontWeight:700,color:"#6366f1",background:"#eef2ff",padding:"1px 5px",borderRadius:99}}>{l}</span>)}</div></td>
+              <td style={{padding:"11px 14px"}}><span style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:6,fontWeight:600}}>{proj?.name||"—"}</span></td>
+              <td style={{padding:"11px 14px"}}><div style={{display:"flex",alignItems:"center",gap:6}}><Av u={au} sz={22}/><span style={{fontSize:12,color:"#374151"}}>{au?.name}</span></div></td>
+              <td style={{padding:"11px 14px"}}><Bdg cfg={ts}/></td>
+              <td style={{padding:"11px 14px"}}><span style={{color:tp.c,fontWeight:700,fontSize:12}}>{tp.label}</span></td>
+              <td style={{padding:"11px 14px",minWidth:80}}><Bar value={pct(t.tLogged,t.tEst)} h={4} color="#0ea5e9"/><span style={{fontSize:10,color:"#94a3b8"}}>{t.tLogged}h/{t.tEst}h</span></td>
+              <td style={{padding:"11px 14px",fontSize:11,color:dl<0?"#ef4444":dl<3?"#f97316":"#374151",fontWeight:600}}>{t.due}{dl<0?" ⚠":""}</td>
+              <td style={{padding:"11px 14px"}}><button onClick={()=>setTasks(prev=>prev.filter(tk=>tk.id!==t.id))} style={{background:"none",border:"none",cursor:"pointer",fontSize:14}}>🗑</button></td>
+            </tr>;
+          })}</tbody>
+        </table>
+        {shown.length===0&&<div style={{textAlign:"center",padding:44,color:"#94a3b8"}}>No tasks found ✓</div>}
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   SPRINTS PAGE
+═══════════════════════════════ */
+const SprintsPage=({sprints,setSprints,projects,tasks,user})=>{
+  const [show,setShow]=useState(false);
+  const [form,setForm]=useState({name:"",pid:projects[0]?.id||1,start:"",end:""});
+  const create=()=>{if(!form.name||!form.start||!form.end)return;setSprints(prev=>[...prev,{id:uid(),...form,pid:parseInt(form.pid),status:"planning",velocity:0}]);setShow(false);};
+  const sColors={planning:"#f59e0b",active:"#6366f1",completed:"#10b981"};
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div><h2 style={{margin:"0 0 2px",fontSize:18,fontWeight:800,color:"#0f172a"}}>🏃 Sprint Board</h2><p style={{margin:0,fontSize:12,color:"#94a3b8"}}>Agile sprint management</p></div>
+        {user.role!=="Developer"&&<Btn icon="➕" onClick={()=>setShow(true)}>New Sprint</Btn>}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:16}}>
+        {sprints.map(sp=>{
+          const proj=projects.find(p=>p.id===sp.pid); const spTasks=tasks.filter(t=>t.pid===sp.pid); const done=spTasks.filter(t=>t.status==="done").length; const sc=sColors[sp.status]||"#94a3b8";
+          return<div key={sp.id} style={{background:"#fff",borderRadius:18,padding:20,border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)",borderTop:`3px solid ${sc}`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+              <div><div style={{fontSize:14,fontWeight:800,color:"#0f172a"}}>{sp.name}</div><div style={{fontSize:11,color:"#94a3b8",marginTop:2}}>{proj?.name||"—"}</div></div>
+              <span style={{fontSize:11,fontWeight:700,color:sc,background:sc+"15",padding:"3px 9px",borderRadius:99,textTransform:"capitalize"}}>{sp.status}</span>
+            </div>
+            <div style={{display:"flex",gap:6,marginBottom:13,fontSize:11,color:"#64748b",alignItems:"center"}}>🗓 {sp.start} → {sp.end}</div>
+            <Bar value={spTasks.length?pct(done,spTasks.length):0}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:7}}>
+              <span style={{fontSize:11,color:"#64748b"}}>{done}/{spTasks.length} tasks done</span>
+              {sp.velocity>0&&<span style={{fontSize:11,fontWeight:700,color:"#6366f1"}}>⚡ {sp.velocity} pts</span>}
+            </div>
+            {sp.status==="active"&&<div style={{marginTop:13,display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5}}>
+              {Object.entries(T_CFG).map(([k,v])=>{const cnt=spTasks.filter(t=>t.status===k).length;return<div key={k} style={{textAlign:"center",background:v.bg,borderRadius:9,padding:"7px 4px"}}><div style={{fontSize:15,fontWeight:800,color:v.c}}>{cnt}</div><div style={{fontSize:9,fontWeight:600,color:v.c}}>{v.label}</div></div>;})}
+            </div>}
+          </div>;
+        })}
+      </div>
+      {show&&<Modal title="Create Sprint" onClose={()=>setShow(false)}>
+        <FF label="Sprint Name"><Inp value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Sprint 4"/></FF>
+        <FF label="Project"><Sel value={form.pid} onChange={e=>setForm(f=>({...f,pid:parseInt(e.target.value)}))}>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Sel></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Start Date"><Inp type="date" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))}/></FF>
+          <FF label="End Date"><Inp type="date" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))}/></FF>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={create} icon="✅">Create</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   GANTT PAGE
+═══════════════════════════════ */
+const GanttPage=({projects})=>{
+  const today=new Date(); const startDate=new Date("2026-06-01"); const totalDays=122;
+  const daysPassed=Math.ceil((today-startDate)/86400000);
+  const months=["June","July","August","September"];
+  return(
+    <div style={{padding:24}}>
+      <h2 style={{margin:"0 0 4px",fontSize:18,fontWeight:800,color:"#0f172a"}}>📅 Gantt Chart</h2>
+      <p style={{margin:"0 0 18px",fontSize:12,color:"#94a3b8"}}>Project timeline — June to September 2026</p>
+      <div style={{background:"#fff",borderRadius:20,border:"1px solid #f1f5f9",overflow:"auto"}}>
+        <div style={{minWidth:700}}>
+          <div style={{display:"grid",gridTemplateColumns:"220px 1fr",borderBottom:"1px solid #f1f5f9"}}>
+            <div style={{padding:"12px 18px",fontSize:11,fontWeight:700,color:"#94a3b8",borderRight:"1px solid #f1f5f9"}}>PROJECT</div>
+            <div style={{display:"flex"}}>{months.map(m=><div key={m} style={{flex:1,padding:"12px 0",textAlign:"center",fontSize:11,fontWeight:700,color:"#374151",borderRight:"1px solid #f8fafc"}}>{m}</div>)}</div>
+          </div>
+          {projects.map((p,idx)=>{
+            const pStart=new Date(p.status==="completed"?"2026-05-01":"2026-06-01");
+            const pEnd=new Date(p.deadline);
+            const startOff=Math.max(0,Math.ceil((pStart-startDate)/86400000));
+            const endOff=Math.min(totalDays,Math.ceil((pEnd-startDate)/86400000));
+            const leftPct=(startOff/totalDays)*100; const widthPct=Math.max(2,((endOff-startOff)/totalDays)*100);
+            const pr=P_CFG[p.priority]; const isOver=dLeft(p.deadline)<0;
+            const barColor=p.status==="completed"?"#10b981":isOver?"#ef4444":pr.c;
+            return<div key={p.id} style={{display:"grid",gridTemplateColumns:"220px 1fr",borderBottom:"1px solid #f8fafc",background:idx%2===0?"#fff":"#fafbff"}}>
+              <div style={{padding:"14px 18px",borderRight:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:9}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:pr.c,flexShrink:0}}/>
+                <div><div style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{p.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{p.progress}% done</div></div>
+              </div>
+              <div style={{position:"relative",height:54,display:"flex",alignItems:"center"}}>
+                <div style={{position:"absolute",left:`${Math.max(0,(daysPassed/totalDays)*100)}%`,top:0,bottom:0,width:2,background:"#ef444466",zIndex:2}}/>
+                <div style={{position:"absolute",left:`${leftPct}%`,width:`${widthPct}%`,height:26,borderRadius:8,background:barColor,opacity:.85,display:"flex",alignItems:"center",paddingLeft:8,overflow:"hidden",zIndex:1}}>
+                  <span style={{fontSize:10,fontWeight:700,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{p.name}</span>
+                </div>
+                <div style={{position:"absolute",left:`${leftPct}%`,width:`${widthPct*(p.progress/100)}%`,height:26,borderRadius:8,background:"rgba(255,255,255,.28)",zIndex:1}}/>
+              </div>
+            </div>;
+          })}
+        </div>
+        <div style={{padding:"10px 18px",borderTop:"1px solid #f1f5f9",fontSize:11,color:"#94a3b8",display:"flex",gap:16,flexWrap:"wrap"}}>
+          <span>🔴 Today line</span><span>🟣 Active bar</span><span>🟢 Completed</span><span>⬛ Progress overlay</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   TEAM PAGE
+═══════════════════════════════ */
+const TeamPage=({users,projects,tasks,timelog})=>(
+  <div style={{padding:24}}>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(270px,1fr))",gap:16}}>
+      {users.map(u=>{
+        const up=projects.filter(p=>p.team.includes(u.id)); const ut=tasks.filter(t=>t.assignee===u.id); const done=ut.filter(t=>t.status==="done").length; const hours=timelog.filter(l=>l.uid===u.id).reduce((a,l)=>a+l.hours,0);
+        return<div key={u.id} style={{background:"#fff",borderRadius:20,padding:22,border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}><Av u={u} sz={52}/><div><div style={{fontSize:15,fontWeight:800,color:"#0f172a"}}>{u.name}</div><div style={{fontSize:12,color:u.color,fontWeight:700}}>{u.role}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.dept} · {u.email}</div></div></div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:13}}>
+            {[[up.length,"Projects","#6366f1"],[`${done}/${ut.length}`,"Tasks","#10b981"],[`${hours}h`,"Logged","#0ea5e9"]].map(([v,l,c])=><div key={l} style={{background:"#f8fafc",borderRadius:11,padding:10,textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:9,color:"#94a3b8",fontWeight:600}}>{l}</div></div>)}
+          </div>
+          <Bar value={ut.length?pct(done,ut.length):0}/>
+          <div style={{fontSize:11,color:"#94a3b8",marginTop:5,marginBottom:10}}>{ut.length?pct(done,ut.length):0}% completion rate</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{u.skills.map(s=><span key={s} style={{fontSize:10,fontWeight:600,color:"#6366f1",background:"#eef2ff",padding:"2px 8px",borderRadius:99}}>{s}</span>)}</div>
+        </div>;
+      })}
+    </div>
+  </div>
+);
+
+/* ═══════════════════════════════
+   CALENDAR PAGE
+═══════════════════════════════ */
+const CalendarPage=({projects,tasks})=>{
+  const today=new Date(); const [month,setMonth]=useState(today.getMonth()); const [year,setYear]=useState(today.getFullYear());
+  const dim=new Date(year,month+1,0).getDate(); const first=new Date(year,month,1).getDay();
+  const MN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const ev=d=>{const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;return{p:projects.filter(x=>x.deadline===ds),t:tasks.filter(x=>x.due===ds)};};
+  return(
+    <div style={{padding:24}}>
+      <div style={{background:"#fff",borderRadius:20,border:"1px solid #f1f5f9",overflow:"hidden"}}>
+        <div style={{padding:"16px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:"1px solid #f1f5f9"}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:800,color:"#0f172a"}}>🗓 {MN[month]} {year}</h2>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);}} style={{padding:"7px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontWeight:700}}>‹</button>
+            <button onClick={()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);}} style={{padding:"7px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",background:"#f8fafc",cursor:"pointer",fontWeight:700}}>›</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{padding:"10px 0",textAlign:"center",fontSize:11,fontWeight:700,color:"#94a3b8",borderBottom:"1px solid #f1f5f9",letterSpacing:".5px"}}>{d}</div>)}
+          {Array.from({length:first}).map((_,i)=><div key={`e${i}`} style={{minHeight:80,borderRight:"1px solid #f8fafc",borderBottom:"1px solid #f8fafc",background:"#fafbff"}}/>)}
+          {Array.from({length:dim}).map((_,i)=>{const d=i+1; const isT=d===today.getDate()&&month===today.getMonth()&&year===today.getFullYear(); const e=ev(d);
+            return<div key={d} style={{minHeight:80,padding:"7px 7px",borderRight:"1px solid #f8fafc",borderBottom:"1px solid #f8fafc",background:isT?"#faf5ff":"#fff"}}>
+              <div style={{width:25,height:25,borderRadius:"50%",background:isT?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:3}}><span style={{fontSize:12,fontWeight:isT?800:500,color:isT?"#fff":"#0f172a"}}>{d}</span></div>
+              {e.p.map(p=><div key={p.id} style={{fontSize:9,fontWeight:700,color:"#6366f1",background:"#eef2ff",borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>📁 {p.name}</div>)}
+              {e.t.slice(0,2).map(t=><div key={t.id} style={{fontSize:9,fontWeight:700,color:"#0ea5e9",background:"#e0f2fe",borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>✓ {t.title}</div>)}
+            </div>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   TIME TRACKER
+═══════════════════════════════ */
+const TimeTrackerPage=({timelog,setTimelog,tasks,projects,users,user})=>{
+  const [running,setRunning]=useState(false); const [secs,setSecs]=useState(0); const [selTask,setSelTask]=useState(tasks[0]?.id||null); const [note,setNote]=useState(""); const [showAdd,setShowAdd]=useState(false);
+  const [manual,setManual]=useState({tid:tasks[0]?.id||"",hours:"",date:"2026-05-31",note:""});
+  const timerRef=useRef(null);
+  useEffect(()=>{if(running){timerRef.current=setInterval(()=>setSecs(s=>s+1),1000);}else clearInterval(timerRef.current);return()=>clearInterval(timerRef.current);},[running]);
+  const fmt=s=>{const h=Math.floor(s/3600);const m=Math.floor((s%3600)/60);const sc=s%60;return`${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}`;};
+  const stopLog=()=>{setRunning(false);if(secs>60){const t=tasks.find(t=>t.id===selTask);const hrs=parseFloat((secs/3600).toFixed(2));setTimelog(prev=>[{id:uid(),uid:user.id,tid:selTask,pid:t?.pid,hours:hrs,date:"2026-05-31",note:note||"Via timer"},...prev]);}setSecs(0);setNote("");};
+  const addManual=()=>{if(!manual.tid||!manual.hours)return;const t=tasks.find(t=>t.id===parseInt(manual.tid));setTimelog(prev=>[{id:uid(),uid:user.id,tid:parseInt(manual.tid),pid:t?.pid,hours:parseFloat(manual.hours),date:manual.date,note:manual.note},...prev]);setShowAdd(false);};
+  const myLog=timelog.filter(l=>l.uid===user.id); const totalH=myLog.reduce((a,l)=>a+l.hours,0);
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:18}}>
+        <div style={{display:"flex",flexDirection:"column",gap:14}}>
+          <div style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",borderRadius:20,padding:24,textAlign:"center"}}>
+            <div style={{fontSize:46,fontWeight:900,color:"#fff",letterSpacing:"-2px",marginBottom:5,fontVariantNumeric:"tabular-nums"}}>{fmt(secs)}</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,.7)",marginBottom:18}}>Timer</div>
+            <Sel value={selTask||""} onChange={e=>setSelTask(parseInt(e.target.value))} style={{marginBottom:10,background:"rgba(255,255,255,.15)",color:"#fff",border:"1px solid rgba(255,255,255,.3)"}}>
+              {tasks.map(t=><option key={t.id} value={t.id}>{t.title}</option>)}
+            </Sel>
+            <Inp value={note} onChange={e=>setNote(e.target.value)} placeholder="Note (optional)" style={{marginBottom:14,background:"rgba(255,255,255,.15)",color:"#fff",border:"1px solid rgba(255,255,255,.3)"}}/>
+            <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+              <button onClick={()=>setRunning(!running)} style={{padding:"11px 26px",borderRadius:12,border:"none",cursor:"pointer",background:running?"#fee2e2":"rgba(255,255,255,.9)",color:running?"#dc2626":"#6366f1",fontWeight:800,fontSize:14,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{running?"⏸ Pause":"▶ Start"}</button>
+              {secs>0&&<button onClick={stopLog} style={{padding:"11px 16px",borderRadius:12,border:"1px solid rgba(255,255,255,.4)",cursor:"pointer",background:"transparent",color:"#fff",fontWeight:700,fontSize:13,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>Log</button>}
+            </div>
+          </div>
+          <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,padding:18}}>
+            <h4 style={{margin:"0 0 13px",fontSize:13,fontWeight:700,color:"#0f172a"}}>📊 My Summary</h4>
+            {[["Total Logged",`${totalH.toFixed(1)}h`,"#6366f1"],["Entries",`${myLog.length}`,"#0ea5e9"],["Projects",`${[...new Set(myLog.map(l=>l.pid))].length}`,"#10b981"]].map(([l,v,c])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:9}}><span style={{fontSize:12,color:"#64748b"}}>{l}</span><span style={{fontSize:14,fontWeight:800,color:c}}>{v}</span></div>
+            ))}
+          </div>
+          <Btn icon="➕" onClick={()=>setShowAdd(true)}>Log Time Manually</Btn>
+        </div>
+        <div style={{background:"#fff",border:"1px solid #f1f5f9",borderRadius:18,overflow:"hidden"}}>
+          <div style={{padding:"15px 18px",borderBottom:"1px solid #f1f5f9",fontSize:14,fontWeight:700,color:"#0f172a"}}>⏱ Time Log</div>
+          <div style={{overflowX:"auto"}}>
+            <table style={{minWidth:600}}>
+              <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["Member","Task","Project","Hours","Date","Note"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+              <tbody>{timelog.map(l=>{const u=users.find(u=>u.id===l.uid); const t=tasks.find(t=>t.id===l.tid); const p=projects.find(p=>p.id===l.pid);
+                return<tr key={l.id} style={{borderBottom:"1px solid #f8fafc"}}>
+                  <td style={{padding:"10px 14px"}}><div style={{display:"flex",alignItems:"center",gap:7}}><Av u={u} sz={24}/><span style={{fontSize:12,fontWeight:600,color:"#0f172a"}}>{u?.name}</span></div></td>
+                  <td style={{padding:"10px 14px",fontSize:12,color:"#374151"}}>{t?.title||"—"}</td>
+                  <td style={{padding:"10px 14px"}}><span style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:6,fontWeight:600}}>{p?.name||"—"}</span></td>
+                  <td style={{padding:"10px 14px"}}><span style={{fontSize:13,fontWeight:800,color:"#6366f1"}}>{l.hours}h</span></td>
+                  <td style={{padding:"10px 14px",fontSize:11,color:"#64748b"}}>{l.date}</td>
+                  <td style={{padding:"10px 14px",fontSize:11,color:"#94a3b8"}}>{l.note}</td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {showAdd&&<Modal title="Log Time Manually" onClose={()=>setShowAdd(false)}>
+        <FF label="Task"><Sel value={manual.tid} onChange={e=>setManual(m=>({...m,tid:e.target.value}))}>{tasks.map(t=><option key={t.id} value={t.id}>{t.title}</option>)}</Sel></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Hours"><Inp type="number" step="0.5" value={manual.hours} onChange={e=>setManual(m=>({...m,hours:e.target.value}))} placeholder="2.5"/></FF>
+          <FF label="Date"><Inp type="date" value={manual.date} onChange={e=>setManual(m=>({...m,date:e.target.value}))}/></FF>
+        </div>
+        <FF label="Note"><Inp value={manual.note} onChange={e=>setManual(m=>({...m,note:e.target.value}))} placeholder="What did you work on?"/></FF>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShowAdd(false)}>Cancel</Btn><Btn onClick={addManual} icon="✅">Log</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   RISK REGISTER
+═══════════════════════════════ */
+const RisksPage=({risks,setRisks,projects,user})=>{
+  const [show,setShow]=useState(false);
+  const [form,setForm]=useState({pid:projects[0]?.id||1,title:"",sev:"medium",prob:"medium",status:"open",fix:""});
+  const add=()=>{if(!form.title)return;setRisks(prev=>[...prev,{id:uid(),...form,pid:parseInt(form.pid)}]);setShow(false);};
+  const SC={high:{label:"High",c:"#ef4444"},medium:{label:"Medium",c:"#f59e0b"},low:{label:"Low",c:"#10b981"}};
+  const open=risks.filter(r=>r.status==="open").length;
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div><h2 style={{margin:"0 0 2px",fontSize:18,fontWeight:800,color:"#0f172a"}}>⚠️ Risk Register</h2><p style={{margin:0,fontSize:12,color:"#94a3b8"}}>{open} open risk{open!==1?"s":""} requiring attention</p></div>
+        {user.role!=="Developer"&&<Btn icon="➕" onClick={()=>setShow(true)}>Add Risk</Btn>}
+      </div>
+      <div style={{display:"flex",gap:14,marginBottom:18}}>
+        {[["high","High","#ef4444"],["medium","Medium","#f59e0b"],["low","Low","#10b981"]].map(([k,l,c])=>{const cnt=risks.filter(r=>r.sev===k&&r.status==="open").length;return<div key={k} style={{flex:1,background:"#fff",borderRadius:14,padding:"13px 18px",border:`1px solid ${c}30`,boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><div style={{fontSize:22,fontWeight:900,color:c}}>{cnt}</div><div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{l} Risks</div></div>;})}
+      </div>
+      <div style={{background:"#fff",borderRadius:18,border:"1px solid #f1f5f9",overflow:"auto"}}>
+        <table style={{minWidth:700}}>
+          <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["Risk","Project","Severity","Probability","Status","Mitigation",""].map(h=><th key={h} style={{padding:"11px 15px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <tbody>{[...risks].sort((a,b)=>({high:3,medium:2,low:1}[b.sev])-({high:3,medium:2,low:1}[a.sev])).map(r=>{const p=projects.find(p=>p.id===r.pid); const sc=SC[r.sev]; return<tr key={r.id} style={{borderBottom:"1px solid #f8fafc"}}>
+            <td style={{padding:"12px 15px",fontSize:13,fontWeight:700,color:"#0f172a"}}>{r.title}</td>
+            <td style={{padding:"12px 15px"}}><span style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:6,fontWeight:600}}>{p?.name||"—"}</span></td>
+            <td style={{padding:"12px 15px"}}><span style={{color:sc.c,fontWeight:700,fontSize:12}}>{sc.label}</span></td>
+            <td style={{padding:"12px 15px",fontSize:12,color:"#64748b",fontWeight:600,textTransform:"capitalize"}}>{r.prob}</td>
+            <td style={{padding:"12px 15px"}}><span style={{fontSize:11,fontWeight:700,color:r.status==="open"?"#ef4444":"#10b981",background:r.status==="open"?"#fee2e2":"#d1fae5",padding:"3px 9px",borderRadius:99}}>{r.status==="open"?"Open":"Mitigated"}</span></td>
+            <td style={{padding:"12px 15px",fontSize:11,color:"#64748b",maxWidth:180}}>{r.fix}</td>
+            <td style={{padding:"12px 15px"}}><button onClick={()=>setRisks(prev=>prev.map(x=>x.id===r.id?{...x,status:x.status==="open"?"mitigated":"open"}:x))} style={{fontSize:11,fontWeight:700,color:r.status==="open"?"#10b981":"#ef4444",background:r.status==="open"?"#d1fae5":"#fee2e2",border:"none",borderRadius:8,padding:"5px 10px",cursor:"pointer"}}>{r.status==="open"?"Resolve":"Reopen"}</button></td>
+          </tr>;})}
+          </tbody>
+        </table>
+      </div>
+      {show&&<Modal title="Add Risk" onClose={()=>setShow(false)}>
+        <FF label="Risk Title"><Inp value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Key developer leaves"/></FF>
+        <FF label="Project"><Sel value={form.pid} onChange={e=>setForm(f=>({...f,pid:parseInt(e.target.value)}))}>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Sel></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Severity"><Sel value={form.sev} onChange={e=>setForm(f=>({...f,sev:e.target.value}))}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></Sel></FF>
+          <FF label="Probability"><Sel value={form.prob} onChange={e=>setForm(f=>({...f,prob:e.target.value}))}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></Sel></FF>
+        </div>
+        <FF label="Mitigation Plan"><textarea value={form.fix} onChange={e=>setForm(f=>({...f,fix:e.target.value}))} rows={3} placeholder="How will this be handled?" style={{width:"100%",padding:"10px 13px",borderRadius:10,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"'Plus Jakarta Sans',sans-serif",resize:"vertical"}}/></FF>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={add} icon="✅">Add Risk</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   INVOICES PAGE
+═══════════════════════════════ */
+const InvoicesPage=({invoices,setInvoices,projects,user})=>{
+  const [show,setShow]=useState(false);
+  const [form,setForm]=useState({pid:projects[0]?.id||1,client:"",amount:"",status:"draft",due:"",issued:"2026-06-01"});
+  const add=()=>{if(!form.client||!form.amount)return;const num=`INV-${String(invoices.length+1).padStart(3,"0")}`;setInvoices(prev=>[...prev,{id:uid(),num,...form,pid:parseInt(form.pid),amount:parseFloat(form.amount)}]);setShow(false);};
+  const total=invoices.reduce((a,i)=>a+i.amount,0); const paid=invoices.filter(i=>i.status==="paid").reduce((a,i)=>a+i.amount,0); const pending=invoices.filter(i=>i.status==="pending").reduce((a,i)=>a+i.amount,0);
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <div><h2 style={{margin:"0 0 2px",fontSize:18,fontWeight:800,color:"#0f172a"}}>🧾 Invoices</h2><p style={{margin:0,fontSize:12,color:"#94a3b8"}}>Track billing and payments</p></div>
+        {user.role==="Director"&&<Btn icon="➕" onClick={()=>setShow(true)}>New Invoice</Btn>}
+      </div>
+      <div style={{display:"flex",gap:14,marginBottom:18,flexWrap:"wrap"}}>
+        {[["Total Value",cur(total),"#6366f1"],["Paid",cur(paid),"#10b981"],["Pending",cur(pending),"#f59e0b"],["Overdue",cur(invoices.filter(i=>i.status==="overdue").reduce((a,i)=>a+i.amount,0)),"#ef4444"]].map(([l,v,c])=>(
+          <div key={l} style={{flex:1,minWidth:130,background:"#fff",borderRadius:14,padding:"13px 16px",border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}><div style={{fontSize:20,fontWeight:900,color:c,letterSpacing:"-0.5px"}}>{v}</div><div style={{fontSize:12,color:"#64748b",fontWeight:600}}>{l}</div></div>
+        ))}
+      </div>
+      <div style={{background:"#fff",borderRadius:18,border:"1px solid #f1f5f9",overflow:"auto"}}>
+        <table style={{minWidth:650}}>
+          <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["Invoice","Client","Project","Amount","Status","Due",""].map(h=><th key={h} style={{padding:"11px 15px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <tbody>{invoices.map(inv=>{const p=projects.find(p=>p.id===inv.pid); const sc=INV_CFG[inv.status]; return<tr key={inv.id} style={{borderBottom:"1px solid #f8fafc"}}>
+            <td style={{padding:"12px 15px"}}><span style={{fontSize:13,fontWeight:700,color:"#6366f1"}}>{inv.num}</span></td>
+            <td style={{padding:"12px 15px",fontSize:13,color:"#0f172a",fontWeight:600}}>{inv.client}</td>
+            <td style={{padding:"12px 15px"}}><span style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:6,fontWeight:600}}>{p?.name||"—"}</span></td>
+            <td style={{padding:"12px 15px"}}><span style={{fontSize:14,fontWeight:800,color:"#0f172a"}}>{cur(inv.amount)}</span></td>
+            <td style={{padding:"12px 15px"}}><Bdg cfg={sc}/></td>
+            <td style={{padding:"12px 15px",fontSize:12,color:dLeft(inv.due)<0?"#ef4444":"#374151",fontWeight:600}}>{inv.due}</td>
+            <td style={{padding:"12px 15px"}}>{inv.status!=="paid"&&user.role==="Director"&&<button onClick={()=>setInvoices(prev=>prev.map(i=>i.id===inv.id?{...i,status:"paid"}:i))} style={{fontSize:11,fontWeight:700,color:"#10b981",background:"#d1fae5",border:"none",borderRadius:8,padding:"5px 10px",cursor:"pointer"}}>Mark Paid</button>}</td>
+          </tr>;})}
+          </tbody>
+        </table>
+      </div>
+      {show&&<Modal title="Create Invoice" onClose={()=>setShow(false)}>
+        <FF label="Client Name"><Inp value={form.client} onChange={e=>setForm(f=>({...f,client:e.target.value}))} placeholder="e.g. Acme Corp"/></FF>
+        <FF label="Project"><Sel value={form.pid} onChange={e=>setForm(f=>({...f,pid:parseInt(e.target.value)}))}>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</Sel></FF>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <FF label="Amount ($)"><Inp type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="5000"/></FF>
+          <FF label="Status"><Sel value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))}>{Object.keys(INV_CFG).map(k=><option key={k} value={k}>{INV_CFG[k].label}</option>)}</Sel></FF>
+          <FF label="Issue Date"><Inp type="date" value={form.issued} onChange={e=>setForm(f=>({...f,issued:e.target.value}))}/></FF>
+          <FF label="Due Date"><Inp type="date" value={form.due} onChange={e=>setForm(f=>({...f,due:e.target.value}))}/></FF>
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={add} icon="✅">Create</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   REPORTS PAGE
+═══════════════════════════════ */
+const ReportsPage=({projects,tasks,users})=>{
+  const tB=projects.reduce((a,p)=>a+p.budget,0), tS=projects.reduce((a,p)=>a+p.spent,0);
+  const avgH=Math.round(projects.reduce((a,p)=>a+p.health,0)/projects.length);
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",gap:14,marginBottom:18,flexWrap:"wrap"}}>
+        {[["Total Budget",cur(tB),"💰","#6366f1"],["Total Spent",cur(tS),"📊","#ef4444"],["Remaining",cur(tB-tS),"🏆","#10b981"],["Avg Health",`${avgH}%`,"❤️","#0ea5e9"]].map(([l,v,ic,c])=>(
+          <StatCard key={l} label={l} value={v} icon={ic} color={c}/>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+        <div style={{background:"#fff",borderRadius:18,padding:22,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 16px",fontSize:14,fontWeight:700,color:"#0f172a"}}>Projects by Status</h3>
+          {Object.entries(S_CFG).map(([k,v])=>{const cnt=projects.filter(p=>p.status===k).length; const mx=Math.max(...Object.entries(S_CFG).map(([x])=>projects.filter(p=>p.status===x).length),1);return<div key={k} style={{marginBottom:11}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:12,color:"#374151",fontWeight:600}}>{v.label}</span><span style={{fontSize:12,fontWeight:700,color:"#0f172a"}}>{cnt}</span></div><Bar value={pct(cnt,mx)} color={v.color} h={10}/></div>;})}
+        </div>
+        <div style={{background:"#fff",borderRadius:18,padding:22,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 16px",fontSize:14,fontWeight:700,color:"#0f172a"}}>Project Health Scores</h3>
+          {projects.map(p=>{const hc=p.health>=75?"#10b981":p.health>=50?"#f59e0b":"#ef4444"; return<div key={p.id} style={{marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{fontSize:12,fontWeight:600,color:"#374151"}}>{p.name}</span><span style={{fontSize:12,fontWeight:700,color:hc}}>{p.health}%</span></div><Bar value={p.health} color={hc} h={7}/></div>;})}
+        </div>
+      </div>
+      <div style={{background:"#fff",borderRadius:18,padding:22,border:"1px solid #f1f5f9"}}>
+        <h3 style={{margin:"0 0 16px",fontSize:14,fontWeight:700,color:"#0f172a"}}>Full Project Performance</h3>
+        <div style={{overflowX:"auto"}}>
+          <table style={{minWidth:700}}>
+            <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["Project","Status","Progress","Health","Budget Used","Tasks","Deadline"].map(h=><th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+            <tbody>{projects.map(p=>{const pT=tasks.filter(t=>t.pid===p.id); const done=pT.filter(t=>t.status==="done").length; const st=S_CFG[p.status]; const hc=p.health>=75?"#10b981":p.health>=50?"#f59e0b":"#ef4444"; return<tr key={p.id} style={{borderBottom:"1px solid #f8fafc"}}>
+              <td style={{padding:"12px 14px",fontSize:13,fontWeight:700,color:"#0f172a"}}>{p.name}</td>
+              <td style={{padding:"12px 14px"}}><Bdg cfg={st}/></td>
+              <td style={{padding:"12px 14px",minWidth:110}}><div style={{display:"flex",alignItems:"center",gap:7}}><div style={{flex:1}}><Bar value={p.progress} h={5}/></div><span style={{fontSize:11,fontWeight:700}}>{p.progress}%</span></div></td>
+              <td style={{padding:"12px 14px"}}><span style={{color:hc,fontWeight:700,fontSize:12}}>{p.health}%</span></td>
+              <td style={{padding:"12px 14px"}}><span style={{fontSize:12,fontWeight:700,color:pct(p.spent,p.budget)>85?"#ef4444":"#0f172a"}}>{pct(p.spent,p.budget)}%</span> <span style={{fontSize:10,color:"#94a3b8"}}>({cur(p.spent)})</span></td>
+              <td style={{padding:"12px 14px",fontSize:12,fontWeight:700,color:"#374151"}}>{done}/{pT.length}</td>
+              <td style={{padding:"12px 14px",fontSize:11,color:dLeft(p.deadline)<0?"#ef4444":"#374151",fontWeight:600}}>{p.deadline}</td>
+            </tr>;})}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   FILES PAGE
+═══════════════════════════════ */
+const FilesPage=()=>{
+  const files=[
+    {name:"Brand_Guidelines_v3.pdf",size:"4.2 MB",type:"PDF",project:"NexFlow Redesign",date:"2026-05-28",c:"#ef4444"},
+    {name:"API_Spec_v3.docx",size:"1.1 MB",type:"DOC",project:"API Integration v3",date:"2026-05-25",c:"#2563eb"},
+    {name:"Mobile_Wireframes.fig",size:"18 MB",type:"FIG",project:"Mobile App Launch",date:"2026-05-20",c:"#a855f7"},
+    {name:"Q2_Report_Final.xlsx",size:"890 KB",type:"XLS",project:"Data Analytics",date:"2026-05-15",c:"#10b981"},
+    {name:"Security_Audit_Results.pdf",size:"2.3 MB",type:"PDF",project:"Security Audit",date:"2026-05-01",c:"#ef4444"},
+    {name:"Component_Library.sketch",size:"32 MB",type:"SKT",project:"NexFlow Redesign",date:"2026-05-10",c:"#f97316"},
+  ];
+  return(
+    <div style={{padding:24}}>
+      <div style={{background:"#fff",borderRadius:20,border:"1px solid #f1f5f9",overflow:"hidden"}}>
+        <div style={{padding:"16px 22px",borderBottom:"1px solid #f1f5f9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <h2 style={{margin:0,fontSize:16,fontWeight:800,color:"#0f172a"}}>📎 Project Files</h2>
+          <Btn icon="⬆️">Upload File</Btn>
+        </div>
+        <table>
+          <thead><tr style={{borderBottom:"1px solid #f1f5f9"}}>{["File","Project","Size","Uploaded",""].map(h=><th key={h} style={{padding:"11px 20px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase"}}>{h}</th>)}</tr></thead>
+          <tbody>{files.map(f=><tr key={f.name} style={{borderBottom:"1px solid #f8fafc"}}>
+            <td style={{padding:"13px 20px"}}><div style={{display:"flex",alignItems:"center",gap:11}}><div style={{width:36,height:36,borderRadius:10,background:f.c+"20",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,fontWeight:800,color:f.c}}>{f.type}</span></div><span style={{fontSize:13,fontWeight:600,color:"#0f172a"}}>{f.name}</span></div></td>
+            <td style={{padding:"13px 20px"}}><span style={{fontSize:11,color:"#6366f1",background:"#eef2ff",padding:"2px 7px",borderRadius:6,fontWeight:600}}>{f.project}</span></td>
+            <td style={{padding:"13px 20px",fontSize:12,color:"#64748b"}}>{f.size}</td>
+            <td style={{padding:"13px 20px",fontSize:12,color:"#64748b"}}>{f.date}</td>
+            <td style={{padding:"13px 20px"}}><button style={{background:"#f1f5f9",border:"none",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontSize:11,fontWeight:700,color:"#374151"}}>⬇️ Download</button></td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   CHAT PAGE
+═══════════════════════════════ */
+const ChatPage=({users,user})=>{
+  const [active,setActive]=useState(users.find(u=>u.id!==user.id)?.id);
+  const [msgs,setMsgs]=useState({
+    [users[1]?.id]:[{from:users[1]?.id,text:"Hey! Did you check the latest API spec?",time:"10:32 AM"},{from:users[0]?.id,text:"Yes! Looks solid. Will review tonight.",time:"10:35 AM"}],
+    [users[2]?.id]:[{from:users[2]?.id,text:"Design files are in the shared folder.",time:"9:15 AM"}],
+  });
+  const [input,setInput]=useState(""); const [showEmoji,setShowEmoji]=useState(false); const endRef=useRef(null);
+  const au=users.find(u=>u.id===active); const conv=msgs[active]||[];
+  useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[conv]);
+  const send=()=>{if(!input.trim())return;setMsgs(prev=>({...prev,[active]:[...(prev[active]||[]),{from:user.id,text:input,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}]}));setInput("");};
+  const EMOJIS=["👍","❤️","🔥","✅","😂","🎉","💡","⚠️","🚀","💪"];
+  return(
+    <div style={{padding:24}}>
+      <div style={{background:"#fff",borderRadius:20,border:"1px solid #f1f5f9",display:"flex",height:560,overflow:"hidden"}}>
+        <div style={{width:230,borderRight:"1px solid #f1f5f9",display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"13px 15px",borderBottom:"1px solid #f1f5f9",fontSize:14,fontWeight:800,color:"#0f172a"}}>💬 Messages</div>
+          {users.filter(u=>u.id!==user.id).map(u=><button key={u.id} onClick={()=>setActive(u.id)} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 15px",border:"none",background:active===u.id?"#eef2ff":"transparent",cursor:"pointer",textAlign:"left",borderLeft:active===u.id?"3px solid #6366f1":"3px solid transparent"}}>
+            <div style={{position:"relative"}}><Av u={u} sz={36}/><div style={{position:"absolute",bottom:0,right:0,width:10,height:10,borderRadius:"50%",background:"#10b981",border:"2px solid #fff"}}/></div>
+            <div><div style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{u.name}</div><div style={{fontSize:11,color:"#94a3b8"}}>{u.role}</div></div>
+          </button>)}
+        </div>
+        <div style={{flex:1,display:"flex",flexDirection:"column"}}>
+          <div style={{padding:"12px 17px",borderBottom:"1px solid #f1f5f9",display:"flex",alignItems:"center",gap:11}}>
+            <Av u={au} sz={36}/>
+            <div><div style={{fontSize:13,fontWeight:700,color:"#0f172a"}}>{au?.name}</div><div style={{fontSize:11,color:"#10b981",fontWeight:600}}>● Online</div></div>
+          </div>
+          <div style={{flex:1,padding:"14px 17px",overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+            {conv.map((m,i)=>{const isMe=m.from===user.id; const sender=users.find(u=>u.id===m.from);return<div key={i} style={{display:"flex",gap:9,flexDirection:isMe?"row-reverse":"row"}}>
+              <Av u={sender} sz={26}/>
+              <div style={{maxWidth:"68%"}}><div style={{background:isMe?"linear-gradient(135deg,#6366f1,#818cf8)":"#f1f5f9",color:isMe?"#fff":"#0f172a",padding:"10px 14px",borderRadius:isMe?"18px 4px 18px 18px":"4px 18px 18px 18px",fontSize:13,lineHeight:1.5}}>{m.text}</div><div style={{fontSize:10,color:"#94a3b8",marginTop:3,textAlign:isMe?"right":"left"}}>{m.time}</div></div>
+            </div>;})}
+            <div ref={endRef}/>
+          </div>
+          {showEmoji&&<div style={{padding:"8px 17px",background:"#f8fafc",borderTop:"1px solid #f1f5f9",display:"flex",gap:5,flexWrap:"wrap"}}>{EMOJIS.map(e=><button key={e} onClick={()=>{setInput(i=>i+e);setShowEmoji(false);}} style={{fontSize:20,background:"none",border:"none",cursor:"pointer",borderRadius:8,padding:4}}>{e}</button>)}</div>}
+          <div style={{padding:"11px 17px",borderTop:"1px solid #f1f5f9",display:"flex",gap:8}}>
+            <button onClick={()=>setShowEmoji(!showEmoji)} style={{background:"#f1f5f9",border:"none",borderRadius:10,padding:"9px 10px",cursor:"pointer",fontSize:16}}>😊</button>
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Type a message…" style={{flex:1,padding:"10px 13px",borderRadius:11,border:"1.5px solid #e2e8f0",fontSize:13,outline:"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}/>
+            <button onClick={send} style={{background:"linear-gradient(135deg,#6366f1,#818cf8)",border:"none",borderRadius:11,padding:"10px 15px",cursor:"pointer",fontSize:16}}>📤</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   OKR GOALS PAGE
+═══════════════════════════════ */
+const GoalsPage=({user})=>{
+  const [goals,setGoals]=useState(INIT_GOALS);
+  const [show,setShow]=useState(false);
+  const [form,setForm]=useState({title:"",kr1:"",kr2:"",kr3:""});
+  const add=()=>{if(!form.title)return;setGoals(prev=>[...prev,{id:uid(),title:form.title,owner:user.id,overall:0,status:"active",krs:[form.kr1,form.kr2,form.kr3].filter(Boolean).map((t,i)=>({id:i+1,text:t,p:0}))}]);setShow(false);};
+  const updateKR=(gid,kid,val)=>setGoals(prev=>prev.map(g=>{if(g.id!==gid)return g; const krs=g.krs.map(k=>k.id===kid?{...k,p:val}:k); return{...g,krs,overall:Math.round(krs.reduce((a,k)=>a+k.p,0)/krs.length)};}));
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+        <div><h2 style={{margin:"0 0 2px",fontSize:18,fontWeight:800,color:"#0f172a"}}>🎯 OKR Goals</h2><p style={{margin:0,fontSize:12,color:"#94a3b8"}}>Objectives & Key Results</p></div>
+        <Btn icon="➕" onClick={()=>setShow(true)}>New Goal</Btn>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        {goals.map(g=>{const owner=USERS.find(u=>u.id===g.owner); const gc=g.overall>=75?"#10b981":g.overall>=50?"#f59e0b":"#ef4444"; return<div key={g.id} style={{background:"#fff",borderRadius:18,padding:22,border:"1px solid #f1f5f9",boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:13}}>
+            <div><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><span style={{fontSize:18}}>🎯</span><h3 style={{margin:0,fontSize:15,fontWeight:800,color:"#0f172a"}}>{g.title}</h3></div><div style={{display:"flex",alignItems:"center",gap:7}}><Av u={owner} sz={22}/><span style={{fontSize:11,color:"#64748b"}}>{owner?.name}</span><span style={{fontSize:11,fontWeight:700,color:g.status==="completed"?"#10b981":"#6366f1",background:g.status==="completed"?"#d1fae5":"#eef2ff",padding:"2px 7px",borderRadius:99}}>{g.status}</span></div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:26,fontWeight:900,color:gc,letterSpacing:"-1px"}}>{g.overall}%</div><div style={{fontSize:10,color:"#94a3b8"}}>Overall</div></div>
+          </div>
+          <Bar value={g.overall} color={gc} h={8}/>
+          <div style={{marginTop:15,display:"flex",flexDirection:"column",gap:10}}>
+            {g.krs.map(kr=><div key={kr.id} style={{background:"#f8fafc",borderRadius:12,padding:"11px 13px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><span style={{fontSize:12,color:"#374151",fontWeight:600}}>{kr.text}</span><span style={{fontSize:12,fontWeight:700,color:"#6366f1"}}>{kr.p}%</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{flex:1}}><Bar value={kr.p} h={5}/></div><input type="range" min={0} max={100} value={kr.p} onChange={e=>updateKR(g.id,kr.id,parseInt(e.target.value))} style={{width:80,accentColor:"#6366f1"}}/></div>
+            </div>)}
+          </div>
+        </div>;})}
+      </div>
+      {show&&<Modal title="Create Goal (OKR)" onClose={()=>setShow(false)}>
+        <FF label="Objective"><Inp value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Launch mobile app in Q3"/></FF>
+        <FF label="Key Result 1"><Inp value={form.kr1} onChange={e=>setForm(f=>({...f,kr1:e.target.value}))} placeholder="e.g. 1000 beta users"/></FF>
+        <FF label="Key Result 2"><Inp value={form.kr2} onChange={e=>setForm(f=>({...f,kr2:e.target.value}))} placeholder="e.g. App store rating ≥ 4.5"/></FF>
+        <FF label="Key Result 3"><Inp value={form.kr3} onChange={e=>setForm(f=>({...f,kr3:e.target.value}))} placeholder="e.g. Zero P1 bugs at launch"/></FF>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={add} icon="✅">Create</Btn></div>
+      </Modal>}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════
+   SETTINGS PAGE
+═══════════════════════════════ */
+const SettingsPage=({user})=>{
+  const [name,setName]=useState(user.name); const [saved,setSaved]=useState(false); const [tab,setTab]=useState("profile");
+  const save=()=>{setSaved(true);setTimeout(()=>setSaved(false),2500);};
+  const Toggle=({label,def})=>{const [on,setOn]=useState(def); return<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #f8fafc"}}><span style={{fontSize:13,color:"#374151"}}>{label}</span><button onClick={()=>setOn(!on)} style={{width:42,height:23,borderRadius:99,background:on?"#6366f1":"#e2e8f0",border:"none",cursor:"pointer",position:"relative",transition:"background .2s"}}><div style={{width:17,height:17,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?22:3,transition:"left .2s",boxShadow:"0 1px 4px rgba(0,0,0,.2)"}}/></button></div>;};
+  const tabs=[["profile","👤 Profile"],["notifications","🔔 Notifications"],["security","🔒 Security"],...(user.role==="Director"?[["workspace","🏢 Workspace"]]:[])];;
+  return(
+    <div style={{padding:24}}>
+      <div style={{display:"flex",gap:2,background:"#f1f5f9",borderRadius:11,padding:3,marginBottom:20,width:"fit-content",flexWrap:"wrap"}}>
+        {tabs.map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{padding:"7px 14px",borderRadius:9,border:"none",cursor:"pointer",background:tab===k?"#fff":"transparent",color:tab===k?"#0f172a":"#64748b",fontSize:12,fontWeight:700,boxShadow:tab===k?"0 1px 4px rgba(0,0,0,.1)":"none",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>{l}</button>
+        ))}
+      </div>
+      <div style={{maxWidth:540}}>
+        {tab==="profile"&&<div style={{background:"#fff",borderRadius:20,padding:26,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 18px",fontSize:16,fontWeight:800,color:"#0f172a"}}>Profile Settings</h3>
+          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:22}}><Av u={user} sz={60}/><div><div style={{fontSize:15,fontWeight:800,color:"#0f172a"}}>{user.name}</div><div style={{fontSize:12,color:user.color,fontWeight:700}}>{user.role}</div><div style={{fontSize:11,color:"#94a3b8"}}>{user.email}</div></div></div>
+          <FF label="Full Name"><Inp value={name} onChange={e=>setName(e.target.value)}/></FF>
+          <FF label="Email"><Inp value={user.email} disabled style={{opacity:.6}}/></FF>
+          <FF label="Department"><Inp value={user.dept} disabled style={{opacity:.6}}/></FF>
+          {saved&&<div style={{background:"#d1fae5",color:"#065f46",borderRadius:10,padding:"10px 13px",fontSize:12,marginBottom:12,fontWeight:600}}>✓ Profile updated!</div>}
+          <Btn onClick={save} icon="✅">Save Changes</Btn>
+        </div>}
+        {tab==="notifications"&&<div style={{background:"#fff",borderRadius:20,padding:26,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 18px",fontSize:16,fontWeight:800,color:"#0f172a"}}>Notifications</h3>
+          <Toggle label="Email alerts for task assignments" def={true}/>
+          <Toggle label="Push notifications for deadlines" def={true}/>
+          <Toggle label="Weekly digest email" def={false}/>
+          <Toggle label="Team announcements" def={true}/>
+          <Toggle label="Overdue task reminders" def={true}/>
+          <Toggle label="Budget threshold alerts" def={true}/>
+        </div>}
+        {tab==="security"&&<div style={{background:"#fff",borderRadius:20,padding:26,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 18px",fontSize:16,fontWeight:800,color:"#0f172a"}}>Security</h3>
+          <FF label="Current Password"><Inp type="password" placeholder="••••••••"/></FF>
+          <FF label="New Password"><Inp type="password" placeholder="••••••••"/></FF>
+          <FF label="Confirm Password"><Inp type="password" placeholder="••••••••"/></FF>
+          <Btn icon="✅">Update Password</Btn>
+          <div style={{marginTop:20,paddingTop:20,borderTop:"1px solid #f1f5f9"}}>
+            <h4 style={{margin:"0 0 10px",fontSize:13,fontWeight:700,color:"#0f172a"}}>Two-Factor Authentication</h4>
+            <p style={{fontSize:13,color:"#64748b",marginBottom:12}}>Add an extra layer of security.</p>
+            <Btn variant="ghost" icon="⚡">Enable 2FA</Btn>
+          </div>
+        </div>}
+        {tab==="workspace"&&user.role==="Director"&&<div style={{background:"#fff",borderRadius:20,padding:26,border:"1px solid #f1f5f9"}}>
+          <h3 style={{margin:"0 0 18px",fontSize:16,fontWeight:800,color:"#0f172a"}}>Workspace Settings</h3>
+          <FF label="Workspace Name"><Inp defaultValue="NexFlow HQ"/></FF>
+          <FF label="Default Currency"><Sel><option>USD ($)</option><option>EUR (€)</option><option>GBP (£)</option></Sel></FF>
+          <FF label="Fiscal Year Start"><Sel><option>January</option><option>April</option><option>July</option></Sel></FF>
+          <Btn icon="✅">Save Workspace</Btn>
+          <div style={{marginTop:18,paddingTop:18,borderTop:"1px solid #f1f5f9",display:"flex",flexDirection:"column",gap:10}}>
+            <Btn variant="secondary" icon="👥">Manage User Roles</Btn>
+            <Btn variant="secondary" icon="🔗">API & Integrations</Btn>
+            <Btn variant="danger" icon="🗑">Delete Workspace</Btn>
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 1 ── DARK MODE TOGGLE
+══════════════════════════════════════════════════ */
+const DarkModeBtn = ({ dark, toggle }) => (
+  <button onClick={toggle} title={dark ? "Light Mode" : "Dark Mode"} style={{
+    position:"fixed", top:14, right:80, zIndex:300,
+    width:38, height:38, borderRadius:"50%",
+    background: dark ? "#1e293b" : "#f1f5f9",
+    border:"1.5px solid " + (dark?"#334155":"#e2e8f0"),
+    cursor:"pointer", fontSize:18, display:"flex",
+    alignItems:"center", justifyContent:"center",
+    boxShadow:"0 2px 8px rgba(0,0,0,.12)", transition:"all .3s"
+  }}>{dark ? "☀️" : "🌙"}</button>
+);
+
+/* ══════════════════════════════════════════════════
+   FEATURE 2 ── POMODORO FOCUS TIMER
+══════════════════════════════════════════════════ */
+const PomodoroWidget = () => {
+  const [show, setShow] = useState(false);
+  const [mode, setMode] = useState("work");   // work | short | long
+  const TIMES = { work:25*60, short:5*60, long:15*60 };
+  const [secs, setSecs] = useState(TIMES.work);
+  const [running, setRunning] = useState(false);
+  const [rounds, setRounds] = useState(0);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (running) {
+      ref.current = setInterval(() => {
+        setSecs(s => {
+          if (s <= 1) {
+            clearInterval(ref.current);
+            setRunning(false);
+            setRounds(r => r + 1);
+            return 0;
+          }
+          return s - 1;
+        });
+      }, 1000);
+    } else clearInterval(ref.current);
+    return () => clearInterval(ref.current);
+  }, [running]);
+
+  const switchMode = m => { setMode(m); setSecs(TIMES[m]); setRunning(false); };
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const pct2 = secs / TIMES[mode] * 100;
+  const modeColors = { work:"#ef4444", short:"#10b981", long:"#6366f1" };
+  const c = modeColors[mode];
+  const circumference = 2 * Math.PI * 45;
+
+  return (
+    <>
+      <button onClick={() => setShow(!show)} title="Pomodoro Timer" style={{
+        position:"fixed", bottom:84, right:24, width:44, height:44,
+        borderRadius:"50%", background:"linear-gradient(135deg,#ef4444,#f97316)",
+        border:"none", cursor:"pointer", boxShadow:"0 4px 14px rgba(239,68,68,.4)",
+        display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, fontSize:20
+      }}>🍅</button>
+
+      {show && (
+        <div style={{
+          position:"fixed", bottom:140, right:14, width:280,
+          background:"#fff", borderRadius:20,
+          boxShadow:"0 20px 60px rgba(0,0,0,.18)",
+          border:"1px solid #f1f5f9", zIndex:300, padding:22, textAlign:"center"
+        }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+            <span style={{ fontSize:14, fontWeight:800, color:"#0f172a" }}>🍅 Pomodoro</span>
+            <button onClick={() => setShow(false)} style={{ background:"#f1f5f9", border:"none", borderRadius:8, cursor:"pointer", width:26, height:26, fontSize:12 }}>✕</button>
+          </div>
+          {/* Mode tabs */}
+          <div style={{ display:"flex", gap:4, background:"#f1f5f9", borderRadius:10, padding:3, marginBottom:18 }}>
+            {[["work","Work"],["short","Short"],["long","Long"]].map(([k,l]) => (
+              <button key={k} onClick={() => switchMode(k)} style={{ flex:1, padding:"5px 0", borderRadius:8, border:"none", cursor:"pointer", background:mode===k?c:"transparent", color:mode===k?"#fff":"#64748b", fontSize:11, fontWeight:700, fontFamily:"'Plus Jakarta Sans',sans-serif", transition:"all .2s" }}>{l}</button>
+            ))}
+          </div>
+          {/* Circle timer */}
+          <div style={{ position:"relative", width:110, height:110, margin:"0 auto 16px" }}>
+            <svg width={110} height={110} style={{ transform:"rotate(-90deg)" }}>
+              <circle cx={55} cy={55} r={45} fill="none" stroke="#f1f5f9" strokeWidth={8}/>
+              <circle cx={55} cy={55} r={45} fill="none" stroke={c} strokeWidth={8}
+                strokeDasharray={circumference}
+                strokeDashoffset={circumference * (1 - pct2/100)}
+                strokeLinecap="round" style={{ transition:"stroke-dashoffset .5s" }}/>
+            </svg>
+            <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:"#0f172a", letterSpacing:"-1px" }}>{fmt(secs)}</div>
+              <div style={{ fontSize:10, color:"#94a3b8", textTransform:"capitalize" }}>{mode}</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, justifyContent:"center", marginBottom:12 }}>
+            <button onClick={() => setRunning(!running)} style={{ padding:"9px 20px", borderRadius:11, border:"none", cursor:"pointer", background:running?"#fee2e2":"linear-gradient(135deg,"+c+","+c+"cc)", color:running?"#dc2626":"#fff", fontWeight:800, fontSize:13, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+              {running ? "⏸ Pause" : "▶ Start"}
+            </button>
+            <button onClick={() => { setSecs(TIMES[mode]); setRunning(false); }} style={{ padding:"9px 14px", borderRadius:11, border:"1.5px solid #e2e8f0", background:"#f8fafc", cursor:"pointer", fontSize:13 }}>↺</button>
+          </div>
+          <div style={{ fontSize:12, color:"#94a3b8" }}>🍅 <b style={{ color:"#0f172a" }}>{rounds}</b> rounds completed today</div>
+        </div>
+      )}
+    </>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 3 ── QUICK-ADD COMMAND BAR (floating)
+══════════════════════════════════════════════════ */
+const QuickAdd = ({ projects, users, user, setTasks, setProjects, onNavigate }) => {
+  const [show, setShow] = useState(false);
+  const [type, setType] = useState("task");
+  const [form, setForm] = useState({ title:"", pid: projects[0]?.id||1, priority:"medium", due:"", assignee: user.id });
+  const ref = useRef(null);
+  useEffect(() => { if (show) ref.current?.focus(); }, [show]);
+
+  const submit = () => {
+    if (!form.title.trim()) return;
+    if (type === "task") {
+      setTasks(prev => [...prev, { id:uid(), pid:parseInt(form.pid), title:form.title, assignee:parseInt(form.assignee), status:"todo", priority:form.priority, due:form.due||"2026-07-01", tLogged:0, tEst:4, labels:[] }]);
+    } else {
+      setProjects(prev => [...prev, { id:uid(), name:form.title, desc:"", status:"planning", priority:form.priority, progress:0, deadline:form.due||"2026-09-01", budget:0, spent:0, team:[user.id], cat:"Engineering", pinned:false, tags:[], health:100, milestones:[] }]);
+    }
+    setShow(false);
+    setForm({ title:"", pid:projects[0]?.id||1, priority:"medium", due:"", assignee:user.id });
+  };
+
+  return (
+    <>
+      <button onClick={() => setShow(true)} title="Quick Add" style={{
+        position:"fixed", bottom:144, right:24, width:44, height:44,
+        borderRadius:"50%", background:"linear-gradient(135deg,#10b981,#34d399)",
+        border:"none", cursor:"pointer", boxShadow:"0 4px 14px rgba(16,185,129,.4)",
+        display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, fontSize:22
+      }}>➕</button>
+
+      {show && (
+        <Modal title="⚡ Quick Add" onClose={() => setShow(false)} width={440}>
+          <div style={{ display:"flex", gap:4, background:"#f1f5f9", borderRadius:10, padding:3, marginBottom:16 }}>
+            {["task","project"].map(t => (
+              <button key={t} onClick={() => setType(t)} style={{ flex:1, padding:"7px 0", borderRadius:8, border:"none", cursor:"pointer", background:type===t?"#fff":"transparent", color:type===t?"#0f172a":"#64748b", fontSize:12, fontWeight:700, fontFamily:"'Plus Jakarta Sans',sans-serif", boxShadow:type===t?"0 1px 4px rgba(0,0,0,.1)":"none", textTransform:"capitalize" }}>{type===t?"✅ ":""}{t}</button>
+            ))}
+          </div>
+          <FF label={type === "task" ? "Task Title" : "Project Name"}>
+            <Inp ref={ref} value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} placeholder={type==="task" ? "e.g. Fix login bug" : "e.g. New marketing campaign"} onKeyDown={e => e.key==="Enter" && submit()}/>
+          </FF>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            {type==="task" && (
+              <FF label="Project">
+                <Sel value={form.pid} onChange={e => setForm(f => ({...f, pid:e.target.value}))}>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </Sel>
+              </FF>
+            )}
+            <FF label="Priority">
+              <Sel value={form.priority} onChange={e => setForm(f => ({...f, priority:e.target.value}))}>
+                {Object.entries(P_CFG).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+              </Sel>
+            </FF>
+            <FF label="Due Date">
+              <Inp type="date" value={form.due} onChange={e => setForm(f => ({...f, due:e.target.value}))}/>
+            </FF>
+            {type==="task" && (
+              <FF label="Assignee">
+                <Sel value={form.assignee} onChange={e => setForm(f => ({...f, assignee:e.target.value}))}>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </Sel>
+              </FF>
+            )}
+          </div>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+            <Btn variant="secondary" onClick={() => setShow(false)}>Cancel</Btn>
+            <Btn onClick={submit} icon="⚡">Add {type==="task"?"Task":"Project"}</Btn>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 4 ── PROJECT TEMPLATES
+══════════════════════════════════════════════════ */
+const TEMPLATES = [
+  { id:1, name:"🚀 Product Launch",       desc:"End-to-end product release workflow",   cat:"Marketing",   tags:["Launch","Marketing","PR"],     milestones:[{id:1,t:"Strategy complete",done:false},{id:2,t:"Content ready",done:false},{id:3,t:"Launch day",done:false}] },
+  { id:2, name:"🛠 Software Development",  desc:"Standard agile dev project structure",  cat:"Engineering", tags:["Dev","Agile","Testing"],       milestones:[{id:1,t:"Requirements",done:false},{id:2,t:"Development",done:false},{id:3,t:"QA & Release",done:false}] },
+  { id:3, name:"🎨 Design Sprint",         desc:"5-day design sprint methodology",        cat:"Design",      tags:["Design","UX","Prototype"],     milestones:[{id:1,t:"Map",done:false},{id:2,t:"Prototype",done:false},{id:3,t:"Test",done:false}] },
+  { id:4, name:"📊 Data Analysis",         desc:"Research, analysis & reporting flow",   cat:"Analytics",   tags:["Data","Research","Report"],    milestones:[{id:1,t:"Data collection",done:false},{id:2,t:"Analysis",done:false},{id:3,t:"Report delivered",done:false}] },
+  { id:5, name:"🔒 Security Audit",        desc:"Full security review and compliance",   cat:"Security",    tags:["Security","Audit","Compliance"],milestones:[{id:1,t:"Scope defined",done:false},{id:2,t:"Testing done",done:false},{id:3,t:"Report filed",done:false}] },
+  { id:6, name:"📱 Mobile App",            desc:"iOS & Android mobile app workflow",     cat:"Mobile",      tags:["iOS","Android","App"],         milestones:[{id:1,t:"Design",done:false},{id:2,t:"MVP",done:false},{id:3,t:"Beta launch",done:false}] },
+];
+
+const TemplatesPage = ({ user, setProjects }) => {
+  const [selected, setSelected] = useState(null);
+  const [deadline, setDeadline] = useState("2026-09-01");
+  const [budget, setBudget] = useState("");
+  const [done, setDone] = useState(null);
+
+  const create = () => {
+    if (!selected) return;
+    const t = TEMPLATES.find(t => t.id === selected);
+    const newP = { id:uid(), name:t.name.replace(/^.{2}/,"").trim(), desc:t.desc, status:"planning", priority:"medium", progress:0, deadline, budget:parseInt(budget)||0, spent:0, team:[user.id], cat:t.cat, pinned:false, tags:t.tags, health:100, milestones:t.milestones.map(m=>({...m})) };
+    setProjects(prev => [...prev, newP]);
+    setDone(t.name);
+    setTimeout(() => setDone(null), 3000);
+    setSelected(null); setBudget(""); setDeadline("2026-09-01");
+  };
+
+  return (
+    <div style={{ padding:24 }}>
+      <h2 style={{ margin:"0 0 4px", fontSize:18, fontWeight:800, color:"#0f172a" }}>📋 Project Templates</h2>
+      <p style={{ margin:"0 0 22px", fontSize:12, color:"#94a3b8" }}>Start fast with pre-built project structures</p>
+
+      {done && (
+        <div style={{ background:"#d1fae5", border:"1px solid #6ee7b7", color:"#065f46", borderRadius:12, padding:"12px 18px", marginBottom:18, fontSize:13, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}>
+          ✅ Project created from template: {done}
+        </div>
+      )}
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:16, marginBottom:24 }}>
+        {TEMPLATES.map(t => (
+          <div key={t.id} onClick={() => setSelected(selected===t.id?null:t.id)} style={{
+            background:"#fff", borderRadius:18, padding:20, cursor:"pointer",
+            border:`2px solid ${selected===t.id?"#6366f1":"#f1f5f9"}`,
+            boxShadow: selected===t.id?"0 0 0 3px rgba(99,102,241,.15)":"0 1px 4px rgba(0,0,0,.04)",
+            transition:"all .2s"
+          }}>
+            <div style={{ fontSize:32, marginBottom:10 }}>{t.name.slice(0,2)}</div>
+            <div style={{ fontSize:14, fontWeight:800, color:"#0f172a", marginBottom:5 }}>{t.name.replace(/^.{2}/,"").trim()}</div>
+            <div style={{ fontSize:12, color:"#64748b", marginBottom:12, lineHeight:1.5 }}>{t.desc}</div>
+            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:10 }}>
+              {t.tags.map(tg => <span key={tg} style={{ fontSize:10, fontWeight:600, color:"#6366f1", background:"#eef2ff", padding:"2px 7px", borderRadius:99 }}>{tg}</span>)}
+            </div>
+            <div style={{ fontSize:11, color:"#94a3b8" }}>📍 {t.milestones.length} milestones · {t.cat}</div>
+            {selected===t.id && <div style={{ marginTop:10, padding:"6px 12px", background:"#eef2ff", borderRadius:99, fontSize:11, fontWeight:700, color:"#6366f1", textAlign:"center" }}>✓ Selected</div>}
+          </div>
+        ))}
+      </div>
+
+      {selected && (
+        <div style={{ background:"#fff", borderRadius:18, padding:22, border:"2px solid #6366f1", boxShadow:"0 0 0 4px rgba(99,102,241,.08)" }}>
+          <h3 style={{ margin:"0 0 16px", fontSize:15, fontWeight:800, color:"#0f172a" }}>Configure: {TEMPLATES.find(t=>t.id===selected)?.name}</h3>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+            <FF label="Deadline"><Inp type="date" value={deadline} onChange={e => setDeadline(e.target.value)}/></FF>
+            <FF label="Budget ($)"><Inp type="number" value={budget} onChange={e => setBudget(e.target.value)} placeholder="e.g. 50000"/></FF>
+          </div>
+          <Btn onClick={create} icon="🚀">Create from Template</Btn>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 5 ── LEADERBOARD
+══════════════════════════════════════════════════ */
+const LeaderboardPage = ({ users, tasks, timelog }) => {
+  const scores = users.map(u => {
+    const uTasks = tasks.filter(t => t.assignee === u.id);
+    const done = uTasks.filter(t => t.status === "done").length;
+    const hours = timelog.filter(l => l.uid === u.id).reduce((a,l) => a+l.hours, 0);
+    const onTime = uTasks.filter(t => t.status==="done" && dLeft(t.due)>=0).length;
+    const pts = done*10 + hours*2 + onTime*5;
+    return { ...u, done, hours, onTime, pts: Math.round(pts) };
+  }).sort((a,b) => b.pts - a.pts);
+
+  const MEDALS = ["🥇","🥈","🥉"];
+
+  return (
+    <div style={{ padding:24 }}>
+      <h2 style={{ margin:"0 0 4px", fontSize:18, fontWeight:800, color:"#0f172a" }}>🏆 Leaderboard</h2>
+      <p style={{ margin:"0 0 22px", fontSize:12, color:"#94a3b8" }}>Team performance ranking based on tasks, hours & on-time delivery</p>
+
+      {/* Podium */}
+      <div style={{ display:"flex", gap:14, justifyContent:"center", marginBottom:28, flexWrap:"wrap" }}>
+        {scores.slice(0,3).map((u,i) => (
+          <div key={u.id} style={{ textAlign:"center", background:"#fff", borderRadius:20, padding:"24px 28px", border:"1px solid #f1f5f9", boxShadow:i===0?"0 8px 28px rgba(99,102,241,.2)":"0 1px 4px rgba(0,0,0,.04)", flex:1, minWidth:140, borderTop:`4px solid ${i===0?"#f59e0b":i===1?"#94a3b8":"#f97316"}` }}>
+            <div style={{ fontSize:36, marginBottom:8 }}>{MEDALS[i]}</div>
+            <Av u={u} sz={52} style={{ margin:"0 auto 10px" }}/>
+            <div style={{ margin:"10px 0 4px", fontSize:15, fontWeight:800, color:"#0f172a" }}>{u.name}</div>
+            <div style={{ fontSize:11, color:"#64748b", marginBottom:12 }}>{u.role}</div>
+            <div style={{ fontSize:28, fontWeight:900, color:i===0?"#f59e0b":i===1?"#64748b":"#f97316", letterSpacing:"-1px" }}>{u.pts}</div>
+            <div style={{ fontSize:11, color:"#94a3b8" }}>points</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Full table */}
+      <div style={{ background:"#fff", borderRadius:18, border:"1px solid #f1f5f9", overflow:"hidden" }}>
+        <table style={{ width:"100%" }}>
+          <thead><tr style={{ borderBottom:"1px solid #f1f5f9" }}>
+            {["Rank","Member","Role","Tasks Done","Hours","On-Time","Points"].map(h => (
+              <th key={h} style={{ padding:"11px 16px", textAlign:"left", fontSize:11, fontWeight:700, color:"#94a3b8", textTransform:"uppercase", letterSpacing:".5px" }}>{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {scores.map((u,i) => (
+              <tr key={u.id} style={{ borderBottom:"1px solid #f8fafc", background:i===0?"#fffbeb":"#fff" }}>
+                <td style={{ padding:"13px 16px", fontSize:18 }}>{MEDALS[i]||`#${i+1}`}</td>
+                <td style={{ padding:"13px 16px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <Av u={u} sz={32}/><div><div style={{ fontSize:13, fontWeight:700, color:"#0f172a" }}>{u.name}</div><div style={{ fontSize:11, color:"#94a3b8" }}>{u.email}</div></div>
+                  </div>
+                </td>
+                <td style={{ padding:"13px 16px" }}><span style={{ fontSize:11, color:u.color, fontWeight:700, background:u.color+"15", padding:"2px 8px", borderRadius:99 }}>{u.role}</span></td>
+                <td style={{ padding:"13px 16px", fontSize:14, fontWeight:700, color:"#10b981" }}>{u.done}</td>
+                <td style={{ padding:"13px 16px", fontSize:14, fontWeight:700, color:"#0ea5e9" }}>{u.hours.toFixed(1)}h</td>
+                <td style={{ padding:"13px 16px", fontSize:14, fontWeight:700, color:"#6366f1" }}>{u.onTime}</td>
+                <td style={{ padding:"13px 16px" }}><span style={{ fontSize:16, fontWeight:900, color:i===0?"#f59e0b":i===1?"#64748b":"#f97316" }}>{u.pts}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p style={{ fontSize:11, color:"#94a3b8", marginTop:12, textAlign:"center" }}>Scoring: 10 pts/task · 2 pts/hour · 5 pts/on-time delivery</p>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 6 ── MEETING NOTES
+══════════════════════════════════════════════════ */
+const MeetingNotesPage = ({ projects, users, user }) => {
+  const [notes, setNotes] = useState([
+    { id:1, title:"Sprint 3 Kickoff", date:"2026-06-01", pid:1, attendees:[1,2,3], content:"Discussed sprint goals. Agreed to prioritize component library. Action items assigned.", actions:["Jordan to finish button variants by June 5","Sam to review API spec","Alex to schedule design review"] },
+    { id:2, title:"API Integration Review", date:"2026-05-30", pid:2, attendees:[1,3], content:"Reviewed OAuth 2.0 progress. Rate limiter still in backlog. Timeline looks tight.", actions:["Sam to unblock OAuth by June 20","Alex to talk to client about deadline extension"] },
+  ]);
+  const [show, setShow] = useState(false);
+  const [view, setView] = useState(null);
+  const [form, setForm] = useState({ title:"", date:"2026-06-05", pid:projects[0]?.id||1, content:"", action1:"", action2:"", action3:"" });
+
+  const create = () => {
+    if (!form.title) return;
+    setNotes(prev => [...prev, { id:uid(), ...form, pid:parseInt(form.pid), attendees:[user.id], actions:[form.action1,form.action2,form.action3].filter(Boolean) }]);
+    setShow(false);
+  };
+
+  if (view) {
+    const proj = projects.find(p => p.id === view.pid);
+    const attendees = view.attendees.map(id => users.find(u => u.id===id)).filter(Boolean);
+    return (
+      <div style={{ padding:24 }}>
+        <button onClick={() => setView(null)} style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", color:"#6366f1", fontSize:13, fontWeight:700, marginBottom:16, padding:0 }}>← Back to Meeting Notes</button>
+        <div style={{ background:"#fff", borderRadius:20, padding:28, border:"1px solid #f1f5f9" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:18 }}>
+            <div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                <span style={{ fontSize:11, color:"#6366f1", background:"#eef2ff", padding:"2px 8px", borderRadius:6, fontWeight:700 }}>{proj?.name}</span>
+                <span style={{ fontSize:11, color:"#94a3b8" }}>📅 {view.date}</span>
+              </div>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:900, color:"#0f172a" }}>📝 {view.title}</h2>
+            </div>
+            <div style={{ display:"flex" }}>{attendees.map((u,i) => <div key={u.id} style={{ marginLeft:i>0?-6:0 }}><Av u={u} sz={28}/></div>)}</div>
+          </div>
+          <div style={{ background:"#f8fafc", borderRadius:14, padding:18, marginBottom:18 }}>
+            <h4 style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:"#374151" }}>📋 Notes</h4>
+            <p style={{ fontSize:14, color:"#374151", lineHeight:1.7, margin:0 }}>{view.content}</p>
+          </div>
+          {view.actions.length > 0 && (
+            <div>
+              <h4 style={{ margin:"0 0 12px", fontSize:13, fontWeight:700, color:"#374151" }}>✅ Action Items</h4>
+              {view.actions.map((a,i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:"#f8fafc", borderRadius:10, marginBottom:8 }}>
+                  <div style={{ width:20, height:20, borderRadius:6, border:"2px solid #cbd5e1", flexShrink:0 }}/>
+                  <span style={{ fontSize:13, color:"#374151" }}>{a}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding:24 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <div><h2 style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:"#0f172a" }}>📝 Meeting Notes</h2><p style={{ margin:0, fontSize:12, color:"#94a3b8" }}>Record decisions, discussions & action items</p></div>
+        <Btn icon="➕" onClick={() => setShow(true)}>New Meeting</Btn>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        {notes.map(n => {
+          const proj = projects.find(p => p.id === n.pid);
+          const attendees = n.attendees.map(id => users.find(u => u.id===id)).filter(Boolean);
+          return (
+            <div key={n.id} onClick={() => setView(n)} style={{ background:"#fff", borderRadius:16, padding:"18px 22px", border:"1px solid #f1f5f9", cursor:"pointer", display:"flex", alignItems:"center", gap:16, transition:"all .2s", boxShadow:"0 1px 4px rgba(0,0,0,.04)" }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,.1)"; e.currentTarget.style.transform="translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow="0 1px 4px rgba(0,0,0,.04)"; e.currentTarget.style.transform="none"; }}
+            >
+              <div style={{ width:44, height:44, borderRadius:13, background:"#eef2ff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>📝</div>
+              <div style={{ flex:1 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                  <span style={{ fontSize:14, fontWeight:800, color:"#0f172a" }}>{n.title}</span>
+                  <span style={{ fontSize:11, color:"#6366f1", background:"#eef2ff", padding:"2px 7px", borderRadius:6, fontWeight:600 }}>{proj?.name}</span>
+                </div>
+                <div style={{ fontSize:12, color:"#64748b", display:"flex", gap:12 }}>
+                  <span>📅 {n.date}</span>
+                  <span>✅ {n.actions.length} action items</span>
+                </div>
+              </div>
+              <div style={{ display:"flex" }}>{attendees.map((u,i) => <div key={u.id} style={{ marginLeft:i>0?-6:0 }}><Av u={u} sz={26}/></div>)}</div>
+              <span style={{ fontSize:18, color:"#cbd5e1" }}>›</span>
+            </div>
+          );
+        })}
+      </div>
+      {show && (
+        <Modal title="📝 New Meeting Note" onClose={() => setShow(false)} width={520}>
+          <FF label="Meeting Title"><Inp value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="e.g. Sprint Planning"/></FF>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <FF label="Date"><Inp type="date" value={form.date} onChange={e => setForm(f=>({...f,date:e.target.value}))}/></FF>
+            <FF label="Project"><Sel value={form.pid} onChange={e => setForm(f=>({...f,pid:e.target.value}))}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</Sel></FF>
+          </div>
+          <FF label="Notes">
+            <textarea value={form.content} onChange={e => setForm(f=>({...f,content:e.target.value}))} rows={4} placeholder="Summarize what was discussed…" style={{ width:"100%", padding:"10px 13px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif", resize:"vertical" }}/>
+          </FF>
+          <FF label="Action Item 1"><Inp value={form.action1} onChange={e => setForm(f=>({...f,action1:e.target.value}))} placeholder="Who does what by when?"/></FF>
+          <FF label="Action Item 2"><Inp value={form.action2} onChange={e => setForm(f=>({...f,action2:e.target.value}))} placeholder="Optional"/></FF>
+          <FF label="Action Item 3"><Inp value={form.action3} onChange={e => setForm(f=>({...f,action3:e.target.value}))} placeholder="Optional"/></FF>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={create} icon="✅">Save Notes</Btn></div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 7 ── PRIORITY MATRIX (Eisenhower)
+══════════════════════════════════════════════════ */
+const PriorityMatrixPage = ({ tasks, users, user }) => {
+  const myTasks = tasks.filter(t => t.assignee === user.id && t.status !== "done");
+
+  const quadrant = t => {
+    const urgent = dLeft(t.due) <= 3;
+    const important = t.priority === "critical" || t.priority === "high";
+    if (urgent && important)  return "do";
+    if (!urgent && important) return "schedule";
+    if (urgent && !important) return "delegate";
+    return "eliminate";
+  };
+
+  const QUADS = {
+    do:        { label:"Do First",   emoji:"🔴", desc:"Urgent & Important",     bg:"#fef2f2", bc:"#fecaca", tc:"#dc2626" },
+    schedule:  { label:"Schedule",   emoji:"🟡", desc:"Not Urgent & Important",  bg:"#fefce8", bc:"#fde68a", tc:"#d97706" },
+    delegate:  { label:"Delegate",   emoji:"🔵", desc:"Urgent & Not Important",  bg:"#eff6ff", bc:"#bfdbfe", tc:"#2563eb" },
+    eliminate: { label:"Eliminate",  emoji:"⚪", desc:"Not Urgent & Not Important",bg:"#f8fafc",bc:"#e2e8f0", tc:"#64748b" },
+  };
+
+  return (
+    <div style={{ padding:24 }}>
+      <h2 style={{ margin:"0 0 4px", fontSize:18, fontWeight:800, color:"#0f172a" }}>🎯 Priority Matrix</h2>
+      <p style={{ margin:"0 0 22px", fontSize:12, color:"#94a3b8" }}>Eisenhower matrix — your tasks organised by urgency & importance</p>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+        {Object.entries(QUADS).map(([qk, qv]) => {
+          const qTasks = myTasks.filter(t => quadrant(t) === qk);
+          return (
+            <div key={qk} style={{ background:qv.bg, borderRadius:18, padding:20, border:`1.5px solid ${qv.bc}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                <span style={{ fontSize:22 }}>{qv.emoji}</span>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:800, color:qv.tc }}>{qv.label}</div>
+                  <div style={{ fontSize:11, color:qv.tc+"99" }}>{qv.desc}</div>
+                </div>
+                <span style={{ marginLeft:"auto", background:qv.bc, color:qv.tc, borderRadius:99, fontSize:12, fontWeight:700, padding:"2px 9px" }}>{qTasks.length}</span>
+              </div>
+              {qTasks.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"20px 0", color:qv.tc+"66", fontSize:12 }}>No tasks here ✓</div>
+              ) : (
+                qTasks.map(t => (
+                  <div key={t.id} style={{ background:"rgba(255,255,255,.7)", borderRadius:11, padding:"10px 13px", marginBottom:8, display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#0f172a" }}>{t.title}</div>
+                      <div style={{ fontSize:10, color:"#94a3b8", marginTop:2 }}>Due {t.due} · {P_CFG[t.priority]?.label}</div>
+                    </div>
+                    <span style={{ fontSize:10, color:dLeft(t.due)<0?"#ef4444":"#94a3b8", fontWeight:700 }}>{dLeft(t.due)<0?"Overdue":`${dLeft(t.due)}d`}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ fontSize:11, color:"#94a3b8", marginTop:14, textAlign:"center" }}>Showing your tasks only. Urgency = due ≤ 3 days. Importance = high or critical priority.</p>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 8 ── CHANGELOG / ACTIVITY FEED
+══════════════════════════════════════════════════ */
+const ChangelogPage = ({ users }) => {
+  const logs = [
+    { id:1, uid:1, type:"create",   icon:"➕", color:"#10b981", title:"Created project", detail:"Security Audit 2026",             date:"2026-06-01 09:12" },
+    { id:2, uid:3, type:"task",     icon:"✅", color:"#6366f1", title:"Completed task",  detail:"Finalize color system",            date:"2026-06-01 10:35" },
+    { id:3, uid:2, type:"move",     icon:"🔀", color:"#0ea5e9", title:"Moved task",      detail:"Component library setup → In Progress", date:"2026-06-01 11:02" },
+    { id:4, uid:1, type:"comment",  icon:"💬", color:"#f59e0b", title:"Added comment",   detail:"User testing round 2 — 3 comments",date:"2026-05-31 15:44" },
+    { id:5, uid:3, type:"log",      icon:"⏱", color:"#8b5cf6", title:"Logged time",     detail:"OAuth 2.0 endpoints — 8h logged",  date:"2026-05-31 17:20" },
+    { id:6, uid:2, type:"invoice",  icon:"🧾", color:"#f97316", title:"Invoice created", detail:"INV-002 for TechStart Inc · $18,500",date:"2026-05-30 09:00" },
+    { id:7, uid:1, type:"milestone",icon:"🏁", color:"#10b981", title:"Milestone done",  detail:"Research done on NexFlow Redesign",date:"2026-05-29 14:10" },
+    { id:8, uid:3, type:"risk",     icon:"⚠️", color:"#ef4444", title:"Risk added",      detail:"Third-party API deprecation risk", date:"2026-05-28 11:30" },
+    { id:9, uid:2, type:"sprint",   icon:"🏃", color:"#6366f1", title:"Sprint started",  detail:"Sprint 3 for NexFlow Redesign",   date:"2026-05-29 09:00" },
+    { id:10,uid:1, type:"status",   icon:"🔄", color:"#0ea5e9", title:"Status changed",  detail:"Data Analytics → In Review",      date:"2026-05-27 16:50" },
+  ];
+
+  const [filter, setFilter] = useState("all");
+  const types = ["all","create","task","log","comment","risk","sprint","invoice","milestone","move","status"];
+  const shown = logs.filter(l => filter==="all" || l.type===filter);
+
+  return (
+    <div style={{ padding:24 }}>
+      <h2 style={{ margin:"0 0 4px", fontSize:18, fontWeight:800, color:"#0f172a" }}>📜 Activity Changelog</h2>
+      <p style={{ margin:"0 0 18px", fontSize:12, color:"#94a3b8" }}>Full audit trail of all workspace activity</p>
+      <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:20 }}>
+        {types.map(t => (
+          <button key={t} onClick={() => setFilter(t)} style={{ padding:"5px 12px", borderRadius:99, border:`1.5px solid ${filter===t?"#6366f1":"#e2e8f0"}`, background:filter===t?"#eef2ff":"#fff", color:filter===t?"#6366f1":"#64748b", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"'Plus Jakarta Sans',sans-serif", textTransform:"capitalize" }}>{t}</button>
+        ))}
+      </div>
+      <div style={{ background:"#fff", borderRadius:18, border:"1px solid #f1f5f9", overflow:"hidden" }}>
+        <div style={{ padding:"0 22px" }}>
+          {shown.map((l, i) => {
+            const u = users.find(u => u.id===l.uid);
+            return (
+              <div key={l.id} style={{ display:"flex", gap:14, padding:"16px 0", borderBottom:i<shown.length-1?"1px solid #f8fafc":"none", position:"relative" }}>
+                {i < shown.length-1 && <div style={{ position:"absolute", left:18, top:50, bottom:0, width:2, background:"#f1f5f9" }}/>}
+                <div style={{ width:36, height:36, borderRadius:11, background:l.color+"18", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0, zIndex:1 }}>{l.icon}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:"#0f172a" }}>{l.title}</span>
+                    <span style={{ fontSize:11, color:l.color, background:l.color+"15", padding:"1px 7px", borderRadius:99, fontWeight:700, textTransform:"capitalize" }}>{l.type}</span>
+                  </div>
+                  <div style={{ fontSize:12, color:"#6366f1", marginBottom:4 }}>{l.detail}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    <Av u={u} sz={20}/>
+                    <span style={{ fontSize:11, color:"#94a3b8" }}>{u?.name} · {l.date}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   FEATURE 9 ── FEEDBACK / RATINGS
+══════════════════════════════════════════════════ */
+const FeedbackPage = ({ projects, users, user }) => {
+  const [ratings, setRatings] = useState([
+    { id:1, pid:1, uid:2, stars:4, comment:"Great collaboration, design system is coming along well!", date:"2026-05-30" },
+    { id:2, pid:2, uid:3, stars:3, comment:"Timeline is tight but team is doing their best.", date:"2026-05-29" },
+    { id:3, pid:4, uid:1, stars:5, comment:"Outstanding analytics work — dashboard looks incredible!", date:"2026-05-28" },
+  ]);
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState({ pid:projects[0]?.id||1, stars:5, comment:"" });
+
+  const submit = () => {
+    if (!form.comment.trim()) return;
+    setRatings(prev => [...prev, { id:uid(), ...form, pid:parseInt(form.pid), uid:user.id, date:"2026-06-01" }]);
+    setShow(false);
+    setForm({ pid:projects[0]?.id||1, stars:5, comment:"" });
+  };
+
+  const avgByProject = projects.map(p => {
+    const pRatings = ratings.filter(r => r.pid===p.id);
+    const avg = pRatings.length ? (pRatings.reduce((a,r) => a+r.stars,0)/pRatings.length).toFixed(1) : null;
+    return { ...p, avg, count:pRatings.length };
+  }).filter(p => p.avg !== null);
+
+  return (
+    <div style={{ padding:24 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+        <div><h2 style={{ margin:"0 0 2px", fontSize:18, fontWeight:800, color:"#0f172a" }}>⭐ Feedback & Ratings</h2><p style={{ margin:0, fontSize:12, color:"#94a3b8" }}>Team ratings and satisfaction scores</p></div>
+        <Btn icon="⭐" onClick={() => setShow(true)}>Give Feedback</Btn>
+      </div>
+
+      {avgByProject.length > 0 && (
+        <div style={{ display:"flex", gap:14, marginBottom:22, flexWrap:"wrap" }}>
+          {avgByProject.map(p => (
+            <div key={p.id} style={{ flex:1, minWidth:160, background:"#fff", borderRadius:16, padding:"16px 18px", border:"1px solid #f1f5f9", textAlign:"center", boxShadow:"0 1px 4px rgba(0,0,0,.04)" }}>
+              <div style={{ fontSize:26, fontWeight:900, color:"#f59e0b", marginBottom:4 }}>{p.avg}</div>
+              <div style={{ display:"flex", justifyContent:"center", gap:2, marginBottom:6 }}>
+                {[1,2,3,4,5].map(s => <span key={s} style={{ fontSize:14, color:s<=Math.round(parseFloat(p.avg))?"#f59e0b":"#e2e8f0" }}>★</span>)}
+              </div>
+              <div style={{ fontSize:12, fontWeight:700, color:"#0f172a" }}>{p.name}</div>
+              <div style={{ fontSize:11, color:"#94a3b8" }}>{p.count} review{p.count!==1?"s":""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        {ratings.map(r => {
+          const proj = projects.find(p => p.id===r.pid);
+          const reviewer = users.find(u => u.id===r.uid);
+          return (
+            <div key={r.id} style={{ background:"#fff", borderRadius:16, padding:"18px 22px", border:"1px solid #f1f5f9", boxShadow:"0 1px 4px rgba(0,0,0,.04)" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <Av u={reviewer} sz={36}/>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#0f172a" }}>{reviewer?.name}</div>
+                    <div style={{ fontSize:11, color:"#94a3b8" }}>{r.date} · <span style={{ color:"#6366f1" }}>{proj?.name}</span></div>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:2 }}>
+                  {[1,2,3,4,5].map(s => <span key={s} style={{ fontSize:18, color:s<=r.stars?"#f59e0b":"#e2e8f0" }}>★</span>)}
+                </div>
+              </div>
+              <p style={{ margin:0, fontSize:13, color:"#374151", lineHeight:1.6, background:"#f8fafc", borderRadius:10, padding:"10px 14px" }}>"{r.comment}"</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {show && (
+        <Modal title="⭐ Give Feedback" onClose={() => setShow(false)} width={460}>
+          <FF label="Project">
+            <Sel value={form.pid} onChange={e => setForm(f=>({...f,pid:parseInt(e.target.value)}))}>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</Sel>
+          </FF>
+          <FF label="Rating">
+            <div style={{ display:"flex", gap:6 }}>
+              {[1,2,3,4,5].map(s => (
+                <button key={s} onClick={() => setForm(f=>({...f,stars:s}))} style={{ fontSize:28, background:"none", border:"none", cursor:"pointer", color:s<=form.stars?"#f59e0b":"#e2e8f0", transition:"color .2s" }}>★</button>
+              ))}
+              <span style={{ fontSize:13, color:"#64748b", alignSelf:"center", marginLeft:8 }}>{["","Poor","Fair","Good","Great","Excellent"][form.stars]}</span>
+            </div>
+          </FF>
+          <FF label="Comment">
+            <textarea value={form.comment} onChange={e => setForm(f=>({...f,comment:e.target.value}))} rows={4} placeholder="Share your thoughts about this project…" style={{ width:"100%", padding:"10px 13px", borderRadius:10, border:"1.5px solid #e2e8f0", fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',sans-serif", resize:"vertical" }}/>
+          </FF>
+          <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}><Btn variant="secondary" onClick={()=>setShow(false)}>Cancel</Btn><Btn onClick={submit} icon="⭐">Submit</Btn></div>
+        </Modal>
+      )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════
+   UPDATED NAV, SIDEBAR, TOPBAR — add new pages
+══════════════════════════════════════════════════ */
+const EXTRA_NAV = [
+  { id:"templates",  label:"Templates",     icon:"📋" },
+  { id:"leaderboard",label:"Leaderboard",   icon:"🏆" },
+  { id:"meetings",   label:"Meetings",      icon:"📝" },
+  { id:"matrix",     label:"Priority Matrix",icon:"🎯" },
+  { id:"changelog",  label:"Changelog",     icon:"📜" },
+  { id:"feedback",   label:"Feedback",      icon:"⭐" },
+];
+
+/* ══════════════════════════════════════════════════
+   ROOT APP — FINAL WITH ALL 25 FEATURES
+══════════════════════════════════════════════════ */
+ReactDOM.createRoot(document.getElementById("root")).render(<AppWithExtras/>);
+
+function AppWithExtras(){
+  const [authUser,setAuthUser]=useState(null);
+  const [tab,setTab]=useState("dashboard");
+  const [collapsed,setCollapsed]=useState(false);
+  const [projects,setProjects]=useState(INIT_PROJECTS);
+  const [tasks,setTasks]=useState(INIT_TASKS);
+  const [sprints,setSprints]=useState(INIT_SPRINTS);
+  const [timelog,setTimelog]=useState(INIT_TIMELOG);
+  const [risks,setRisks]=useState(INIT_RISKS);
+  const [invoices,setInvoices]=useState(INIT_INVOICES);
+  const [selProject,setSelProject]=useState(null);
+  const [showSearch,setShowSearch]=useState(false);
+  const [showNotifs,setShowNotifs]=useState(false);
+  const [showShortcuts,setShowShortcuts]=useState(false);
+  const [showTour,setShowTour]=useState(false);
+  const [dark,setDark]=useState(false);
+
+  useEffect(()=>{
+    try{const s=sessionStorage.getItem("nf_u");if(s)setAuthUser(JSON.parse(s));}catch{}
+    try{if(!sessionStorage.getItem("nf_t"))setShowTour(true);}catch{}
+  },[]);
+
+  useEffect(()=>{
+    const h=e=>{
+      if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}
+      if((e.ctrlKey||e.metaKey)&&e.key==="/"){e.preventDefault();setShowShortcuts(true);}
+      if(e.key==="Escape"){setShowSearch(false);setShowNotifs(false);setShowShortcuts(false);}
+    };
+    window.addEventListener("keydown",h);
+    return()=>window.removeEventListener("keydown",h);
+  },[]);
+
+  // Dark mode body bg
+  useEffect(()=>{ document.body.style.background = dark?"#0f172a":"#f8fafc"; },[dark]);
+
+  const login=u=>{try{sessionStorage.setItem("nf_u",JSON.stringify(u));}catch{}setAuthUser(u);try{if(!sessionStorage.getItem("nf_t"))setShowTour(true);}catch{}};
+  const logout=()=>{try{sessionStorage.removeItem("nf_u");}catch{}setAuthUser(null);setSelProject(null);};
+  const finishTour=()=>{setShowTour(false);try{sessionStorage.setItem("nf_t","1");}catch{}};
+  const goTab=t=>{setTab(t);setSelProject(null);};
+
+  if(!authUser)return<LoginPage onLogin={login}/>;
+
+  const ALL_NAV = [
+    {id:"dashboard",label:"Dashboard",  icon:"📊"},
+    {id:"projects", label:"Projects",   icon:"📁"},
+    {id:"tasks",    label:"My Tasks",   icon:"✅"},
+    {id:"sprints",  label:"Sprints",    icon:"🏃"},
+    {id:"gantt",    label:"Gantt Chart",icon:"📅"},
+    {id:"team",     label:"Team",       icon:"👥"},
+    {id:"calendar", label:"Calendar",   icon:"🗓"},
+    {id:"timelog",  label:"Time Tracker",icon:"⏱"},
+    {id:"risks",    label:"Risk Register",icon:"⚠️"},
+    {id:"invoices", label:"Invoices",   icon:"🧾"},
+    {id:"reports",  label:"Reports",    icon:"📈"},
+    {id:"files",    label:"Files",      icon:"📎"},
+    {id:"chat",     label:"Messages",   icon:"💬"},
+    {id:"goals",    label:"OKR Goals",  icon:"🎯"},
+    {id:"templates",label:"Templates",  icon:"📋"},
+    {id:"leaderboard",label:"Leaderboard",icon:"🏆"},
+    {id:"meetings", label:"Meetings",   icon:"📝"},
+    {id:"matrix",   label:"Priority Matrix",icon:"🔲"},
+    {id:"changelog",label:"Changelog",  icon:"📜"},
+    {id:"feedback", label:"Feedback",   icon:"⭐"},
+    {id:"settings", label:"Settings",   icon:"⚙️"},
+  ];
+  const restricted=["reports","invoices","risks"];
+  const visible=ALL_NAV.filter(n=>authUser.role==="Director"||!restricted.includes(n.id));
+
+  const TITLES={
+    dashboard:["Dashboard",`Welcome back, ${authUser.name}`],
+    projects: ["Projects","All your projects"],
+    tasks:    ["My Tasks","Track your work"],
+    sprints:  ["Sprint Board","Agile sprints"],
+    gantt:    ["Gantt Chart","Visual timeline"],
+    team:     ["Team","Workspace members"],
+    calendar: ["Calendar","Deadlines & milestones"],
+    timelog:  ["Time Tracker","Log & track hours"],
+    risks:    ["Risk Register","Monitor project risks"],
+    invoices: ["Invoices","Billing & payments"],
+    reports:  ["Reports","Performance analytics"],
+    files:    ["Files","Shared assets"],
+    chat:     ["Messages","Team chat"],
+    goals:    ["OKR Goals","Objectives & Key Results"],
+    templates:["Templates","Start from a template"],
+    leaderboard:["Leaderboard","Team performance ranking"],
+    meetings: ["Meeting Notes","Decisions & action items"],
+    matrix:   ["Priority Matrix","Eisenhower prioritisation"],
+    changelog:["Changelog","Full activity audit trail"],
+    feedback: ["Feedback","Team ratings & reviews"],
+    settings: ["Settings","Account preferences"],
+  };
+  const [title,subtitle]=TITLES[tab]||["NexFlow",""];
+
+  const bg   = dark ? "#0f172a" : "#f8fafc";
+  const sbg  = dark ? "#1e293b" : "#fff";
+  const sbdr = dark ? "#334155" : "#f1f5f9";
+  const txt  = dark ? "#f1f5f9" : "#0f172a";
+
+  return(
+    <div style={{display:"flex",minHeight:"100vh",background:bg,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+      {showTour&&<OnboardingTour onFinish={finishTour}/>}
+      {showSearch&&<SearchOverlay projects={projects} tasks={tasks} onClose={()=>setShowSearch(false)} onViewProject={p=>{setSelProject(p);setTab("projects");}}/>}
+      {showNotifs&&<><div style={{position:"fixed",inset:0,zIndex:499}} onClick={()=>setShowNotifs(false)}/><NotifsPanel onClose={()=>setShowNotifs(false)}/></>}
+      {showShortcuts&&<ShortcutsModal onClose={()=>setShowShortcuts(false)}/>}
+
+      {/* ─── SIDEBAR (inline — uses dark-aware colours) ─── */}
+      <div style={{width:collapsed?64:230,minHeight:"100vh",background:sbg,borderRight:`1px solid ${sbdr}`,display:"flex",flexDirection:"column",transition:"width .3s",flexShrink:0,boxShadow:"2px 0 8px rgba(0,0,0,.06)",zIndex:100}}>
+        <div style={{padding:collapsed?"16px 0":"16px",display:"flex",alignItems:"center",gap:10,borderBottom:`1px solid ${sbdr}`,justifyContent:collapsed?"center":"flex-start"}}>
+          <div style={{width:36,height:36,borderRadius:11,background:"linear-gradient(135deg,#6366f1,#818cf8)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>⚡</div>
+          {!collapsed&&<div style={{flex:1}}><div style={{fontWeight:900,fontSize:16,color:txt,letterSpacing:"-0.5px"}}>NexFlow</div><div style={{fontSize:10,color:"#94a3b8",fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>Workspace</div></div>}
+          {!collapsed&&<button onClick={()=>setCollapsed(true)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:16,padding:4}}>✕</button>}
+        </div>
+        <nav style={{flex:1,padding:"6px 0",overflowY:"auto"}}>
+          {visible.map(item=>{
+            const isA=tab===item.id;
+            return(
+              <button key={item.id} onClick={()=>goTab(item.id)} title={collapsed?item.label:undefined} style={{width:"100%",display:"flex",alignItems:"center",gap:11,padding:collapsed?"9px 0":"9px 13px",justifyContent:collapsed?"center":"flex-start",background:isA?"linear-gradient(90deg,#eef2ff,#f5f3ff)":"transparent",border:"none",cursor:"pointer",borderLeft:isA?"3px solid #6366f1":"3px solid transparent",transition:"all .15s",fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+                <span style={{fontSize:16,lineHeight:1}}>{item.icon}</span>
+                {!collapsed&&<span style={{fontSize:12,fontWeight:isA?700:500,color:isA?"#6366f1":dark?"#94a3b8":"#64748b"}}>{item.label}</span>}
+              </button>
+            );
+          })}
+        </nav>
+        <div style={{padding:collapsed?"10px 0":"10px 12px",borderTop:`1px solid ${sbdr}`}}>
+          {collapsed
+            ?<button onClick={()=>setCollapsed(false)} style={{width:"100%",display:"flex",justifyContent:"center",padding:"8px 0",background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:18}}>☰</button>
+            :<div style={{display:"flex",alignItems:"center",gap:8,padding:8,borderRadius:12,background:dark?"#334155":"#f8fafc"}}>
+              <Av u={authUser} sz={30}/>
+              <div style={{flex:1,overflow:"hidden"}}><div style={{fontSize:12,fontWeight:700,color:txt,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{authUser.name}</div><div style={{fontSize:10,color:"#94a3b8"}}>{authUser.role}</div></div>
+              <button onClick={logout} title="Logout" style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:14}}>🚪</button>
+            </div>
+          }
+        </div>
+      </div>
+
+      {/* ─── MAIN ─── */}
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
+        {/* Topbar */}
+        <div style={{background:sbg,borderBottom:`1px solid ${sbdr}`,padding:"0 22px",height:62,display:"flex",alignItems:"center",gap:14,position:"sticky",top:0,zIndex:50,boxShadow:"0 1px 4px rgba(0,0,0,.04)"}}>
+          <button onClick={()=>setCollapsed(!collapsed)} style={{background:"none",border:"none",cursor:"pointer",color:"#94a3b8",fontSize:20,padding:6,borderRadius:8}}>☰</button>
+          <div style={{flex:1}}><h1 style={{margin:0,fontSize:17,fontWeight:800,color:txt,letterSpacing:"-0.5px"}}>{selProject?selProject.name:title}</h1><p style={{margin:0,fontSize:11,color:"#94a3b8"}}>{selProject?"Project Detail":subtitle}</p></div>
+          <button onClick={()=>setShowSearch(true)} style={{display:"flex",alignItems:"center",gap:8,background:dark?"#334155":"#f8fafc",border:`1.5px solid ${dark?"#475569":"#e2e8f0"}`,borderRadius:12,padding:"8px 14px",cursor:"pointer",width:200}} onMouseEnter={e=>e.currentTarget.style.borderColor="#6366f1"} onMouseLeave={e=>e.currentTarget.style.borderColor=dark?"#475569":"#e2e8f0"}>
+            <span style={{fontSize:14}}>🔍</span><span style={{fontSize:13,color:"#94a3b8",flex:1,textAlign:"left"}}>Search…</span><kbd style={{fontSize:10,color:"#94a3b8",background:dark?"#475569":"#e2e8f0",padding:"1px 5px",borderRadius:4,fontFamily:"monospace"}}>⌘K</kbd>
+          </button>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>setDark(!dark)} title={dark?"Light mode":"Dark mode"} style={{background:dark?"#334155":"#f8fafc",border:`1.5px solid ${dark?"#475569":"#e2e8f0"}`,borderRadius:11,padding:"8px 10px",cursor:"pointer",fontSize:15}}>{dark?"☀️":"🌙"}</button>
+            <button onClick={()=>setShowShortcuts(true)} style={{background:dark?"#334155":"#f8fafc",border:`1.5px solid ${dark?"#475569":"#e2e8f0"}`,borderRadius:11,padding:"8px 10px",cursor:"pointer",fontSize:15}}>⚡</button>
+            <button onClick={()=>setShowNotifs(s=>!s)} style={{background:dark?"#334155":"#f8fafc",border:`1.5px solid ${dark?"#475569":"#e2e8f0"}`,borderRadius:11,padding:"8px 10px",cursor:"pointer",position:"relative",fontSize:15}}>🔔<span style={{position:"absolute",top:4,right:4,width:7,height:7,borderRadius:"50%",background:"#ef4444",border:"2px solid "+sbg}}/></button>
+            <Av u={authUser} sz={34}/>
+          </div>
+        </div>
+
+        {/* Page content */}
+        <div style={{flex:1,overflowY:"auto"}}>
+          {selProject
+            ?<ProjectDetail project={selProject} allTasks={tasks} users={USERS} user={authUser} onBack={()=>setSelProject(null)} setProjects={setProjects} setTasks={setTasks}/>
+            :<>
+              {tab==="dashboard"  &&<Dashboard projects={projects} tasks={tasks} users={USERS} user={authUser} activity={ACTIVITY} onNewProject={()=>goTab("projects")}/>}
+              {tab==="projects"   &&<ProjectsPage projects={projects} setProjects={setProjects} tasks={tasks} users={USERS} user={authUser} onView={setSelProject}/>}
+              {tab==="tasks"      &&<TasksPage tasks={tasks} setTasks={setTasks} projects={projects} users={USERS} user={authUser}/>}
+              {tab==="sprints"    &&<SprintsPage sprints={sprints} setSprints={setSprints} projects={projects} tasks={tasks} user={authUser}/>}
+              {tab==="gantt"      &&<GanttPage projects={projects}/>}
+              {tab==="team"       &&<TeamPage users={USERS} projects={projects} tasks={tasks} timelog={timelog}/>}
+              {tab==="calendar"   &&<CalendarPage projects={projects} tasks={tasks}/>}
+              {tab==="timelog"    &&<TimeTrackerPage timelog={timelog} setTimelog={setTimelog} tasks={tasks} projects={projects} users={USERS} user={authUser}/>}
+              {tab==="risks"      &&<RisksPage risks={risks} setRisks={setRisks} projects={projects} user={authUser}/>}
+              {tab==="invoices"   &&<InvoicesPage invoices={invoices} setInvoices={setInvoices} projects={projects} user={authUser}/>}
+              {tab==="reports"    &&<ReportsPage projects={projects} tasks={tasks} users={USERS}/>}
+              {tab==="files"      &&<FilesPage/>}
+              {tab==="chat"       &&<ChatPage users={USERS} user={authUser}/>}
+              {tab==="goals"      &&<GoalsPage user={authUser}/>}
+              {tab==="templates"  &&<TemplatesPage user={authUser} setProjects={setProjects}/>}
+              {tab==="leaderboard"&&<LeaderboardPage users={USERS} tasks={tasks} timelog={timelog}/>}
+              {tab==="meetings"   &&<MeetingNotesPage projects={projects} users={USERS} user={authUser}/>}
+              {tab==="matrix"     &&<PriorityMatrixPage tasks={tasks} users={USERS} user={authUser}/>}
+              {tab==="changelog"  &&<ChangelogPage users={USERS}/>}
+              {tab==="feedback"   &&<FeedbackPage projects={projects} users={USERS} user={authUser}/>}
+              {tab==="settings"   &&<SettingsPage user={authUser}/>}
+            </>
+          }
+        </div>
+      </div>
+
+      {/* Floating widgets */}
+      <StickyNotes/>
+      <PomodoroWidget/>
+      <QuickAdd projects={projects} users={USERS} user={authUser} setTasks={setTasks} setProjects={setProjects} onNavigate={goTab}/>
+    </div>
+  );
+}
+</script>
+</body>
+</html>
